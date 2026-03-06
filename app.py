@@ -4,29 +4,24 @@ import os
 import re
 from fredapi import Fred
 
-# --- LangChain Libraries ---
+# LangChain Libraries 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
-# ==========================================
 # 1. API Key Setup 
-# ==========================================
 import os
+from dotenv import load_dotenv
+load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY") # 환경 변수에서 가져오기
-FRED_API_KEY = "230a44e2a7c17bf323c7ad1bcbf932b7".strip() # 공백 제거 적용
+FRED_API_KEY = "230a44e2a7c17bf323c7ad1bcbf932b7".strip() 
 
-# ==========================================
-# 2. Web Page Configuration
-# ==========================================
 st.set_page_config(page_title="Fed-Watcher AI", layout="wide")
 st.title("🦅 Fed-Watcher: Federal Reserve Minutes Analysis AI")
 
-# ==========================================
-# 🔍 3. 사용자 질문 분석 함수 (단위 및 날짜 추출)
-# ==========================================
+# 3.사용자 질문 분석 함수 (단위 및 날짜 추출)
 def analyze_user_prompt(prompt):
     prompt_lower = prompt.lower()
     
@@ -47,9 +42,7 @@ def analyze_user_prompt(prompt):
     
     return ticker, name, unit, start_year, end_year
 
-# ==========================================
-# 📈 4. 동적 FRED 데이터 로딩 (캐싱)
-# ==========================================
+# 4. 동적 FRED 데이터 로딩 (캐싱)
 @st.cache_data
 def load_dynamic_macro_data(ticker):
     try:
@@ -62,9 +55,7 @@ def load_dynamic_macro_data(ticker):
         st.error(f"FRED API Error: {e}")
         return pd.DataFrame()
 
-# ==========================================
-# 🧠 5. AI Brain Loading
-# ==========================================
+
 @st.cache_resource
 def load_ai_brain():
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
@@ -84,9 +75,8 @@ def load_ai_brain():
 
 rag_chain = load_ai_brain()
 
-# ==========================================
-# 📊 6. 동적 차트 렌더링 함수
-# ==========================================
+
+# 동적 차트 렌더링 함수
 def render_dynamic_chart(ticker, indicator_name, unit_desc, start_yr, end_yr):
     try:
         # 인코딩 문제 방지를 위해 utf-8-sig 사용
@@ -110,7 +100,6 @@ def render_dynamic_chart(ticker, indicator_name, unit_desc, start_yr, end_yr):
             # 그래프 출력
             st.line_chart(df_combined[['Hawkish_Score', ticker]])
             
-            # --- 💡 요청하신 하단 설명 부분 (고정 표시) ---
             st.markdown(f"**📈 데이터 범례 및 의미**")
             st.markdown(f"- 🔴 **Hawkish_Score**: 1~10점 (8-10: 매파/긴축, 4-7: 중립, 1-3: 비둘기파/완화)")
             st.markdown(f"- 🔵 **{indicator_name}**: {unit_desc}")
@@ -121,9 +110,8 @@ def render_dynamic_chart(ticker, indicator_name, unit_desc, start_yr, end_yr):
     except Exception as e:
         st.error(f"차트를 불러오는 중 오류가 발생했습니다: {e}")
 
-# ==========================================
-# 💻 7. Chatbot UI
-# ==========================================
+
+# 7. Chatbot UI
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -137,7 +125,7 @@ for message in st.session_state.messages:
 
 # 새 질문 처리
 if prompt := st.chat_input("Ask about inflation or interest rates from 2023 to 2024..."):
-    # 질문 분석
+
     t, n, u, sy, ey = analyze_user_prompt(prompt)
 
     with st.chat_message("user"):
@@ -156,3 +144,5 @@ if prompt := st.chat_input("Ask about inflation or interest rates from 2023 to 2
         "role": "assistant", "content": real_answer, 
         "ticker": t, "name": n, "unit": u, "s_yr": sy, "e_yr": ey
     })
+    
+    

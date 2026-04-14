@@ -18,8 +18,82 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY") # 환경 변수에서 가져오기
 FRED_API_KEY = "230a44e2a7c17bf323c7ad1bcbf932b7".strip() 
 
+from apscheduler.schedulers.background import BackgroundScheduler
+import datetime
+
 st.set_page_config(page_title="Fed-Watcher AI", layout="wide")
 st.title("🦅 Fed-Watcher: Federal Reserve Minutes Analysis AI")
+
+# 2. 스케줄러를 통한 자동 수집 및 ChromaDB 업데이트
+def update_vector_db():
+    """
+    정기적으로 최신 FOMC 회의록 및 연설문을 크롤링하여 
+    ChromaDB(./fed_db)에 문서를 추가하는 로직입니다.
+    """
+    print(f"[{datetime.datetime.now()}] 신규 연설문/회의록 수집 & ChromaDB 업데이트 실행 중...")
+    
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        import xml.etree.ElementTree as ET
+        from langchain.text_splitter import RecursiveCharacterTextSplitter
+        from langchain.docstore.document import Document
+        from langchain_openai import OpenAIEmbeddings
+        from langchain_community.vectorstores import Chroma
+        
+        # 1. RSS 피드에서 최신 회의록/성명서 URL 추출
+        rss_url = "https://www.federalreserve.gov/feeds/press_monetary.xml"
+        response = requests.get(rss_url)
+        root = ET.fromstring(response.content)
+        
+        urls_to_scrape = []
+        for item in root.findall('./channel/item')[:3]:  # 최근 3개의 자료만 우선 수집
+            link = item.find('link').text
+            if link:
+                urls_to_scrape.append(link)
+                
+        # 2. URL에서 텍스트 수집 및 Document 객체 생성
+        docs = []
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        for url in urls_to_scrape:
+            page_resp = requests.get(url, headers=headers)
+            soup = BeautifulSoup(page_resp.text, 'html.parser')
+            # 연준 사이트 본문 영역 보통 'article' 클래스/id 안에 존재
+            article = soup.find('div', id='article')
+            if not article:
+                article = soup.find('body')
+                
+            text = article.get_text(separator='\n', strip=True) if article else ""
+            if text:
+                docs.append(Document(page_content=text, metadata={"source": url}))
+                
+        # 3. 텍스트 청크 분할
+        if docs:
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+            split_docs = text_splitter.split_documents(docs)
+            
+            # 4. 기존 DB에 새 문서 추가
+            embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+            db = Chroma(persist_directory="./fed_db", embedding_function=embeddings)
+            db.add_documents(split_docs)
+            # db.persist() # 최신 버전에서는 자동 저장 혹은 호출 불필요할 수 있음
+            print(f"[{datetime.datetime.now()}] 업데이트 완료: {len(split_docs)}개 청크 추가됨.")
+        else:
+            print(f"[{datetime.datetime.now()}] 수집할 문서가 없습니다.")
+            
+    except Exception as e:
+        print(f"[{datetime.datetime.now()}] 업데이트 중 오류 발생: {e}")
+
+@st.cache_resource
+def init_scheduler():
+    scheduler = BackgroundScheduler(timezone="Asia/Seoul")
+    # 매일 밤 12시(자정)에 업데이트 실행
+    scheduler.add_job(update_vector_db, 'cron', hour=0, minute=0)
+    scheduler.start()
+    return scheduler
+
+# 앱 구동 시 스케줄러 초기화 (캐싱을 통해 1회만 실행됨)
+init_scheduler()
 
 # 3.사용자 질문 분석 함수 (단위 및 날짜 추출)
 def analyze_user_prompt(prompt):

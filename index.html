@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Fed Data Analyzer</title>
+
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      font-family: "Pretendard";
+      background: #0b1220;
+      color: #111827;
+    }
+
+    .english-font {
+      font-family: "Times New Roman", Times, serif;
+    }
+
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      background: #0b1220;
+    }
+
+    /* 왼쪽 사이드바 */
+    .sidebar {
+      border-right: 1px solid #ffffff;
+      padding: 8px 18px 8px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      background: #0b1220;
+      min-height: 0;
+    }
+
+    .logo {
+      margin-bottom: -12px;
+    }
+
+    .logo img {
+      width: 65px;
+      display: block;
+      padding: 0;
+    }
+
+    .sidebar-section {
+      background: #111827;
+      border: 1px solid #ffffff;
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .sidebar-history {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-indicators {
+      max-height: 42%;
+      overflow-y: auto;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 14px;
+      letter-spacing: 0.2px;
+    }
+
+    .chat-item {
+      padding: 12px 14px;
+      border: 1px solid #243041;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: #ffffff;
+      background: #243041;
+    }
+
+    .chat-item.new-chat {
+      font-weight: 600;
+      background: #243041;
+    }
+
+    .used-indicator-box {
+      min-height: 120px;
+      border: 1px dashed #8e9db1;
+      border-radius: 12px;
+      padding: 14px;
+      background: #0f172a;
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .used-indicator-text {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #8e9db1;
+    }
+
+    /* 오른쪽 메인 */
+    .main {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      min-width: 0;
+      background: #0b1220;
+    }
+
+    .topbar {
+      height: 72px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 20px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #0b1220;
+    }
+
+    .main-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    .settings-wrap {
+      position: relative;
+    }
+
+    .icon-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      border: None;
+      background: #0b1220;
+      color: #f3f4f6;
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    .icon-btn:hover {
+      background: #1b2940;
+    }
+
+    .settings-menu {
+      position: absolute;
+      top: 48px;
+      right: 0;
+      width: 210px;
+      background: #111827;
+      border: 1px solid #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      padding: 10px;
+      display: none;
+      z-index: 100;
+    }
+
+    .settings-menu.open {
+      display: block;
+    }
+
+    .menu-label {
+      font-size: 12px;
+      color: #93c5fd;
+      margin: 6px 8px 8px;
+      font-weight: 700;
+    }
+
+    .menu-item {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: none;
+      color: #e5e7eb;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .menu-item-wrap {
+      position: relative;
+    }
+
+    .submenu {
+      display: none;
+      position: absolute;
+      left: -160px;
+      top: 0;
+      width: 150px;
+      background: #111827;
+      border: 1px solid #ffffff;
+      border-radius: 14px;
+      padding: 10px;
+      z-index: 101;
+    }
+
+    .submenu.open {
+      display: block;
+    }
+     
+    .menu-item:hover {
+      background: #1a2334;
+    }
+
+    .content {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 18px;
+      padding: 18px;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .panel {
+      border: 1px solid #e5e7eb;
+      border-radius: 18px;
+      background: #ffffff;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .panel-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid #1f2937;
+      font-weight: 700;
+      font-size: 15px;
+      background: #141d2e;
+      color: #f9fafb;
+    }
+
+    .panel-body {
+      padding: 16px;
+      overflow: auto;
+      min-height: 0;
+      color: #d1d5db;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .chart-placeholder {
+      height: 320px;
+      border: 1px dashed #cbd5f5;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      color: #111827;
+      margin-bottom: 14px;
+      background: #f1f5f9;
+    }
+
+    .chat-message {
+      margin-bottom: 18px;
+    }
+
+    .message-bubble {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .user-message .message-bubble {
+      background: #1b2535;
+      border: 1px solid #2d3b52;
+      color: #f1f5f9;
+    }
+
+    .bot-message .message-bubble {
+      background: none;
+      border: none;
+      padding: 0;
+      color: #111827;
+    }
+
+    .bot-message {
+      margin-top: 10px;
+    }
+
+    .bottombar {
+      border-top: 1px solid #0f172a;
+      padding: 14px 18px;
+      background: #0f172a;
+    }
+
+    .search {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .search input {
+      width: 100%;
+      padding: 15px 16px;
+      border: 1px solid #d1d5db;
+      border-radius: 999px;
+      font-size: 15px;
+      outline: none;
+      background: #ffffff;
+      color: #111827;
+    }
+
+    .search input::placeholder {
+      color:;
+    }
+
+    .search input:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    }
+
+    .search button {
+      padding: 14px 20px;
+      border-radius: 999px;
+      border: none;
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .search button:hover {
+      background: #1d4ed8;
+    }
+
+    /* 햄버거 버튼 (모바일 전용) */
+    .hamburger-btn {
+      display: none;
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      border: none;
+      background: #0b1220;
+      color: #f3f4f6;
+      cursor: pointer;
+      font-size: 20px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 사이드바 오버레이 (모바일 드로어용) */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 200;
+    }
+
+    .sidebar-overlay.active {
+      display: block;
+    }
+
+    /* 모바일 */
+    @media (max-width: 768px) {
+      .hamburger-btn {
+        display: flex;
+      }
+
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      /* 사이드바 → 슬라이드인 드로어 */
+      .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 280px;
+        height: 100dvh;
+        z-index: 300;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        overflow-y: auto;
+        padding-top: 16px;
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      .content {
+        grid-template-columns: 1fr;
+        padding: 10px;
+        gap: 10px;
+      }
+
+      /* 그래프 패널 → 설명 패널 순서로 세로 스택 */
+      .panel {
+        max-height: none;
+      }
+
+      .chart-placeholder {
+        height: 200px;
+      }
+
+      .main-title {
+        font-size: 18px;
+      }
+
+      .topbar {
+        padding: 0 12px;
+        height: 60px;
+      }
+
+      .search {
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+      }
+
+      .search input {
+        font-size: 13px;
+        padding: 12px 14px;
+      }
+
+      .search button {
+        padding: 12px 16px;
+        font-size: 13px;
+      }
+
+      .bottombar {
+        padding: 10px 12px;
+      }
+    }
+
+    /* 태블릿 */
+    @media (min-width: 769px) and (max-width: 1100px) {
+      .app {
+        grid-template-columns: 220px 1fr;
+      }
+
+      .sidebar {
+        padding: 8px 12px;
+        gap: 14px;
+      }
+
+      .content {
+        grid-template-columns: 1fr;
+        padding: 14px;
+        gap: 14px;
+      }
+
+      .chart-placeholder {
+        height: 240px;
+      }
+
+      .main-title {
+        font-size: 22px;
+      }
+
+      .search {
+        max-width: 100%;
+      }
+    }
+
+    /* 데스크톱 (1101px 이상) */
+    @media (min-width: 1101px) {
+      .content {
+        grid-template-columns: 1fr 400px;
+      }
+    }
+
+  </style>
+</head>
+
+<body>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <div class="app">
+
+    <!-- 왼쪽 사이드바 -->
+    <aside class="sidebar">
+      <div class="logo">
+        <img src="FED_logo.png" style="width:80px;">
+      </div>
+
+      <div class="sidebar-section sidebar-history">
+        <div class="section-title" data-i18n="history">History</div>
+        <div class="chat-item new-chat" data-i18n="newChat">+ New chat</div>
+        <div class="chat-item" data-i18n="historyItem1">최근 5년간 금리 변동</div>
+        <div class="chat-item" data-i18n="historyItem2">금리 인상기의 실업률 변화</div>
+        <div class="chat-item" data-i18n="historyItem3">GDP 성장률 비교</div>
+      </div>
+
+      <div class="sidebar-section sidebar-indicators">
+       <div class="section-title" data-i18n="usedIndicators">사용한 지표</div>
+       <div class="used-indicator-box">
+         <p class="used-indicator-text" data-i18n="indicatorPlaceholder">그래프 생성 시 사용된 지표 여기에 표시</p>
+       </div>
+     </div>
+    </aside>
+
+    <!-- 오른쪽 메인 -->
+    <section class="main">
+      <header class="topbar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="hamburger-btn" id="hamburgerBtn" title="메뉴 열기">☰</button>
+          <div class="main-title english-font" data-i18n="title">FED Data Analyzer</div>
+        </div>
+
+        <div class="settings-wrap">
+          <button class="icon-btn" title="설정">⚙️</button>
+
+          <div class="settings-menu">
+            <div class="menu-label" data-i18n="settings">설정</div>
+
+            <!-- Language 서브메뉴 -->
+            <div class="menu-item-wrap">
+              <button class="menu-item" data-i18n="language">언어</button>
+              <div class="submenu">
+                <button class="menu-item" onclick="setLanguage('ko')">🇰🇷 한국어</button>
+                <button class="menu-item" onclick="setLanguage('en')">🇺🇸 English</button>
+                <button class="menu-item" onclick="setLanguage('es')">🇪🇸 Español</button>
+              </div>
+            </div>
+
+            <button class="menu-item" data-i18n="share">공유</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="content">
+        <!-- 그래프 영역 -->
+        <div class="panel">
+          <div class="panel-header" data-i18n="graph">그래프</div>
+          <div class="panel-body">
+            <div class="chart-placeholder" data-i18n="chartPlaceholder1">그래프 여기에 생성</div>
+            <div class="chart-placeholder" data-i18n="chartPlaceholder2">다음 그래프</div>
+          </div>
+        </div>
+
+        <!-- 설명 영역 -->
+        <div class="panel">
+          <div class="panel-header" data-i18n="explanation">설명</div>
+          <div class="panel-body" id="answerArea">
+            <div class="chat-message user-message">
+              <div class="message-bubble" data-i18n="demoUserMsg">최근 5년간 금리 변동에 대해 알려줘</div>
+            </div>
+
+            <div class="chat-message bot-message">
+              <div class="message-bubble" data-i18n="demoBotMsg">
+                여기에 텍스트로 답변이 올라옵니다.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <footer class="bottombar">
+        <form class="search" onsubmit="return false;">
+          <input id="query" type="text" data-i18n-placeholder="placeholder" placeholder="질문을 입력하세요. 예: 최근 5년 금리 그래프 보여줘" />
+          <button id="searchBtn" type="submit" data-i18n="search">검색</button>
+        </form>
+      </footer>
+    </section>
+  </div>
+
+  <script>
+  const i18n = {
+    ko: {
+      title: "FED Data Analyzer",
+      settings: "설정",
+      language: "언어",
+      share: "공유",
+      history: "기록",
+      newChat: "+ 새 채팅",
+      historyItem1: "최근 5년간 금리 변동",
+      historyItem2: "금리 인상기의 실업률 변화",
+      historyItem3: "GDP 성장률 비교",
+      usedIndicators: "사용한 지표",
+      indicatorPlaceholder: "그래프 생성 시 사용된 지표 여기에 표시",
+      graph: "그래프",
+      chartPlaceholder1: "그래프 여기에 생성",
+      chartPlaceholder2: "다음 그래프",
+      explanation: "설명",
+      demoUserMsg: "최근 5년간 금리 변동에 대해 알려줘",
+      demoBotMsg: "여기에 텍스트로 답변이 올라옵니다.",
+      placeholder: "질문을 입력하세요. 예: 최근 5년 금리 그래프 보여줘",
+      search: "검색",
+    },
+    en: {
+      title: "FED Data Analyzer",
+      settings: "Settings",
+      language: "Language",
+      share: "Share",
+      history: "History",
+      newChat: "+ New Chat",
+      historyItem1: "Interest rate changes (5yr)",
+      historyItem2: "Unemployment during rate hikes",
+      historyItem3: "GDP growth rate comparison",
+      usedIndicators: "Used Indicators",
+      indicatorPlaceholder: "Indicators used for chart generation appear here",
+      graph: "Graph",
+      chartPlaceholder1: "Chart will appear here",
+      chartPlaceholder2: "Next chart",
+      explanation: "Explanation",
+      demoUserMsg: "Tell me about interest rate changes in the last 5 years",
+      demoBotMsg: "The AI response will appear here.",
+      placeholder: "Ask a question. e.g. Show me interest rate chart for last 5 years",
+      search: "Search",
+    },
+    es: {
+      title: "FED Data Analyzer",
+      settings: "Configuración",
+      language: "Idioma",
+      share: "Compartir",
+      history: "Historial",
+      newChat: "+ Nueva consulta",
+      historyItem1: "Variación de tasas (5 años)",
+      historyItem2: "Desempleo durante alzas de tasas",
+      historyItem3: "Comparación del crecimiento del PIB",
+      usedIndicators: "Indicadores usados",
+      indicatorPlaceholder: "Los indicadores usados para el gráfico aparecen aquí",
+      graph: "Gráfico",
+      chartPlaceholder1: "El gráfico aparecerá aquí",
+      chartPlaceholder2: "Siguiente gráfico",
+      explanation: "Explicación",
+      demoUserMsg: "Muéstrame los cambios en tasas de interés de los últimos 5 años",
+      demoBotMsg: "La respuesta aparecerá aquí.",
+      placeholder: "Haz una pregunta. Ej: Muéstrame el gráfico de tasas de los últimos 5 años",
+      search: "Buscar",
+    }
+  };
+
+  function setLanguage(lang) {
+    const dict = i18n[lang];
+    // 텍스트 교체
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+      const key = el.dataset.i18n;
+      if (dict[key]) el.textContent = dict[key];
+    });
+    // placeholder 교체
+    document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
+      const key = el.dataset.i18nPlaceholder;
+      if (dict[key]) el.placeholder = dict[key];
+    });
+
+    localStorage.setItem("lang", lang); // 새로고침 후에도 유지
+  }
+
+  // 페이지 로드 시 저장된 언어 적용
+  window.addEventListener("DOMContentLoaded", () => {
+    const saved = localStorage.getItem("lang") || "ko";
+    setLanguage(saved);
+
+    // 햄버거 메뉴 (모바일 사이드바 드로어)
+    const hamburgerBtn = document.getElementById("hamburgerBtn");
+    const sidebar = document.querySelector(".sidebar");
+    const overlay = document.getElementById("sidebarOverlay");
+
+    function openSidebar() {
+      sidebar.classList.add("open");
+      overlay.classList.add("active");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeSidebar() {
+      sidebar.classList.remove("open");
+      overlay.classList.remove("active");
+      document.body.style.overflow = "";
+    }
+
+    hamburgerBtn.addEventListener("click", () => {
+      sidebar.classList.contains("open") ? closeSidebar() : openSidebar();
+    });
+
+    overlay.addEventListener("click", closeSidebar);
+
+    // 화면 크기가 커지면 드로어 상태 초기화
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 768) {
+        closeSidebar();
+      }
+    });
+
+    // 설정 메뉴 클릭 토글
+    const settingsBtn = document.querySelector(".icon-btn");
+    const settingsMenu = document.querySelector(".settings-menu");
+    const langBtn = document.querySelector(".menu-item-wrap .menu-item");
+    const submenu = document.querySelector(".submenu");
+
+    settingsBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      settingsMenu.classList.toggle("open");
+      // 설정 메뉴 닫힐 때 서브메뉴도 닫기
+      if (!settingsMenu.classList.contains("open")) {
+        submenu.classList.remove("open");
+      }
+    });
+
+    langBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      submenu.classList.toggle("open");
+    });
+
+    // 바깥 클릭 시 모든 메뉴 닫기
+    document.addEventListener("click", () => {
+      settingsMenu.classList.remove("open");
+      submenu.classList.remove("open");
+    });
+
+    // 메뉴 내부 클릭은 닫힘 방지
+    settingsMenu.addEventListener("click", (e) => e.stopPropagation());
+  });
+</script>
+</body>
+</html>

@@ -14,9 +14,15 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
 load_dotenv()
+
+openai_api_key = os.getenv("OPENAI_API_KEY") # 환경 변수에서 가져오기
 FRED_API_KEY = os.getenv("FRED_API_KEY", "230a44e2a7c17bf323c7ad1bcbf932b7").strip()
 
-st.set_page_config(page_title="FED Data Analyzer", layout="wide", initial_sidebar_state="expanded")
+from apscheduler.schedulers.background import BackgroundScheduler
+import datetime
+import streamlit as st
+
+st.set_page_config(page_title="Fed-Watcher AI", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
@@ -43,6 +49,78 @@ hr { border-color: #1E3A5F; margin: 1rem 0; }
 </style>
 """, unsafe_allow_html=True)
 
+st.title("🦅 Fed-Watcher: Federal Reserve Minutes Analysis AI")
+
+# 2. 스케줄러를 통한 자동 수집 및 ChromaDB 업데이트
+def update_vector_db():
+    """
+    정기적으로 최신 FOMC 회의록 및 연설문을 크롤링하여 
+    ChromaDB(./fed_db)에 문서를 추가하는 로직입니다.
+    """
+    print(f"[{datetime.datetime.now()}] 신규 연설문/회의록 수집 & ChromaDB 업데이트 실행 중...")
+    
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        import xml.etree.ElementTree as ET
+        from langchain.text_splitter import RecursiveCharacterTextSplitter
+        from langchain.docstore.document import Document
+        from langchain_openai import OpenAIEmbeddings
+        from langchain_community.vectorstores import Chroma
+        
+        # 1. RSS 피드에서 최신 회의록/성명서 URL 추출
+        rss_url = "https://www.federalreserve.gov/feeds/press_monetary.xml"
+        response = requests.get(rss_url)
+        root = ET.fromstring(response.content)
+        
+        urls_to_scrape = []
+        for item in root.findall('./channel/item')[:3]:  # 최근 3개의 자료만 우선 수집
+            link = item.find('link').text
+            if link:
+                urls_to_scrape.append(link)
+                
+        # 2. URL에서 텍스트 수집 및 Document 객체 생성
+        docs = []
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        for url in urls_to_scrape:
+            page_resp = requests.get(url, headers=headers)
+            soup = BeautifulSoup(page_resp.text, 'html.parser')
+            # 연준 사이트 본문 영역 보통 'article' 클래스/id 안에 존재
+            article = soup.find('div', id='article')
+            if not article:
+                article = soup.find('body')
+                
+            text = article.get_text(separator='\n', strip=True) if article else ""
+            if text:
+                docs.append(Document(page_content=text, metadata={"source": url}))
+                
+        # 3. 텍스트 청크 분할
+        if docs:
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+            split_docs = text_splitter.split_documents(docs)
+            
+            # 4. 기존 DB에 새 문서 추가
+            embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+            db = Chroma(persist_directory="./fed_db", embedding_function=embeddings)
+            db.add_documents(split_docs)
+            print(f"[{datetime.datetime.now()}] 업데이트 완료: {len(split_docs)}개 청크 추가됨.")
+        else:
+            print(f"[{datetime.datetime.now()}] 수집할 문서가 없습니다.")
+            
+    except Exception as e:
+        print(f"[{datetime.datetime.now()}] 업데이트 중 오류 발생: {e}")
+
+@st.cache_resource
+def init_scheduler():
+    scheduler = BackgroundScheduler(timezone="Asia/Seoul")
+    # 매일 밤 12시(자정)에 업데이트 실행
+    scheduler.add_job(update_vector_db, 'cron', hour=0, minute=0)
+    scheduler.start()
+    return scheduler
+
+# 앱 구동 시 스케줄러 초기화 (캐싱을 통해 1회만 실행됨)
+init_scheduler()
+
 INDICATORS = {
     "FEDFUNDS": "기준금리 (Fed Funds Rate)",
     "DGS10": "10년물 국채금리",
@@ -56,18 +134,31 @@ INDICATORS = {
     "M2SL": "M2 통화량",
 }
 
-KEYWORD_MAP = {
-    ("inflation", "price", "cpi", "물가", "인플레"): ("CPIAUCSL", "지수"),
-    ("pce",): ("PCEPI", "지수"),
-    ("unemployment", "employment", "job", "고용", "실업", "일자리"): ("UNRATE", "비율 (%)"),
-    ("payroll", "취업자", "고용자"): ("PAYEMS", "천 명"),
-    ("gdp", "growth", "economy", "성장", "경기"): ("GDPC1", "10억 달러"),
-    ("10년", "10-year", "dgs10", "장기금리"): ("DGS10", "금리 (%)"),
-    ("2년", "2-year", "dgs2", "단기금리"): ("DGS2", "금리 (%)"),
-    ("금리차", "yield curve", "t10y2y", "장단기"): ("T10Y2Y", "금리차 (%)"),
-    ("m2", "통화량", "money supply"): ("M2SL", "십억 달러"),
-    ("rate", "금리", "interest", "fed funds", "기준금리"): ("FEDFUNDS", "금리 (%)"),
-}
+# 3.사용자 질문 분석 함수 (단위 및 날짜 추출)
+def analyze_user_prompt(prompt):
+    prompt_lower = prompt.lower()
+    
+    # 지표 및 티커 결정 (main 브랜치의 확장된 KEYWORD_MAP 로직 반영)
+    KEYWORD_MAP = {
+        ("inflation", "price", "cpi", "물가", "인플레"): ("CPIAUCSL", "지수 (Index, 1982-84=100)"),
+        ("pce",): ("PCEPI", "지수"),
+        ("unemployment", "employment", "job", "고용", "실업", "일자리"): ("UNRATE", "비율 (%)"),
+        ("payroll", "취업자", "고용자"): ("PAYEMS", "천 명"),
+        ("gdp", "growth", "economy", "성장", "경기"): ("GDPC1", "10억 달러 (Billions of $)"),
+        ("10년", "10-year", "dgs10", "장기금리"): ("DGS10", "금리 (%)"),
+        ("2년", "2-year", "dgs2", "단기금리"): ("DGS2", "금리 (%)"),
+        ("금리차", "yield curve", "t10y2y", "장단기"): ("T10Y2Y", "금리차 (%)"),
+        ("m2", "통화량", "money supply"): ("M2SL", "십억 달러"),
+        ("rate", "금리", "interest", "fed funds", "기준금리"): ("FEDFUNDS", "금리 (%)"),
+    }
+    
+    for keywords, (ticker, unit) in KEYWORD_MAP.items():
+        if any(keyword in prompt_lower for keyword in keywords):
+            name = INDICATORS.get(ticker, ticker)
+            return ticker, name, unit
+
+    # 기본값 반환
+    return "FEDFUNDS", INDICATORS["FEDFUNDS"], "금리 (%)"
 
 EXAMPLE_QUESTIONS = [
     "최근 5년간 금리 변동 알려줘",

@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Fed Data Analyzer</title>
 
-  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+  <link rel="stylesheet" as="style" crossorigin
+    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
   <style>
     * {
@@ -85,6 +88,7 @@
       border-radius: 12px;
       margin-bottom: 10px;
       font-size: 14px;
+      cursor: pointer;
       color: #ffffff;
       background: #243041;
     }
@@ -101,6 +105,7 @@
       padding: 14px;
       background: #0f172a;
       display: flex;
+      flex-direction: column;
       align-items: flex-start;
     }
 
@@ -212,7 +217,7 @@
     .submenu.open {
       display: block;
     }
-     
+
     .menu-item:hover {
       background: #1a2334;
     }
@@ -230,7 +235,7 @@
     .panel {
       border: 1px solid #e5e7eb;
       border-radius: 18px;
-      background: #ffffff;
+      background: #FFFBF0;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -250,7 +255,7 @@
       padding: 16px;
       overflow: auto;
       min-height: 0;
-      color: #d1d5db;
+      color: #1f2937;
       font-size: 14px;
       line-height: 1.6;
     }
@@ -279,16 +284,16 @@
     }
 
     .user-message .message-bubble {
-      background: #1b2535;
-      border: 1px solid #2d3b52;
-      color: #f1f5f9;
+      background: #1E3A5F;
+      border: 2px solid #1E3A5F;
+      color: #ffffff;
     }
 
     .bot-message .message-bubble {
-      background: none;
-      border: none;
-      padding: 0;
-      color: #111827;
+      background: #0E7490;
+      border: 2px solid #0E7490;
+      padding: 12px 14px;
+      color: #f1f5f9;
     }
 
     .bot-message {
@@ -322,7 +327,7 @@
     }
 
     .search input::placeholder {
-      color:;
+      color: #9ca3af;
     }
 
     .search input:focus {
@@ -481,7 +486,6 @@
         grid-template-columns: 1fr 400px;
       }
     }
-
   </style>
 </head>
 
@@ -497,18 +501,16 @@
 
       <div class="sidebar-section sidebar-history">
         <div class="section-title" data-i18n="history">History</div>
-        <div class="chat-item new-chat" data-i18n="newChat">+ New chat</div>
-        <div class="chat-item" data-i18n="historyItem1">최근 5년간 금리 변동</div>
-        <div class="chat-item" data-i18n="historyItem2">금리 인상기의 실업률 변화</div>
-        <div class="chat-item" data-i18n="historyItem3">GDP 성장률 비교</div>
+        <div class="chat-item new-chat" id="newChatBtn" data-i18n="newChat">+ New chat</div>
+        <div id="historyList"></div>
       </div>
 
       <div class="sidebar-section sidebar-indicators">
-       <div class="section-title" data-i18n="usedIndicators">사용한 지표</div>
-       <div class="used-indicator-box">
-         <p class="used-indicator-text" data-i18n="indicatorPlaceholder">그래프 생성 시 사용된 지표 여기에 표시</p>
-       </div>
-     </div>
+        <div class="section-title" data-i18n="usedIndicators">사용한 지표</div>
+        <div class="used-indicator-box">
+          <p class="used-indicator-text" data-i18n="indicatorPlaceholder">그래프 생성 시 사용된 지표 여기에 표시</p>
+        </div>
+      </div>
     </aside>
 
     <!-- 오른쪽 메인 -->
@@ -535,7 +537,7 @@
               </div>
             </div>
 
-            <button class="menu-item" data-i18n="share">공유</button>
+            <button class="menu-item" id="shareBtn" data-i18n="share">공유</button>
           </div>
         </div>
       </header>
@@ -544,9 +546,8 @@
         <!-- 그래프 영역 -->
         <div class="panel">
           <div class="panel-header" data-i18n="graph">그래프</div>
-          <div class="panel-body">
-            <div class="chart-placeholder" data-i18n="chartPlaceholder1">그래프 여기에 생성</div>
-            <div class="chart-placeholder" data-i18n="chartPlaceholder2">다음 그래프</div>
+          <div class="panel-body" id="chartsArea">
+            <div class="chart-placeholder" data-i18n="chartPlaceholder1">질문을 입력하면 차트가 생성됩니다.</div>
           </div>
         </div>
 
@@ -554,13 +555,9 @@
         <div class="panel">
           <div class="panel-header" data-i18n="explanation">설명</div>
           <div class="panel-body" id="answerArea">
-            <div class="chat-message user-message">
-              <div class="message-bubble" data-i18n="demoUserMsg">최근 5년간 금리 변동에 대해 알려줘</div>
-            </div>
-
             <div class="chat-message bot-message">
               <div class="message-bubble" data-i18n="demoBotMsg">
-                여기에 텍스트로 답변이 올라옵니다.
+                여기에 텍스트로 답변이 올라옵니다. 하단의 검색창에 연준 데이터와 관련된 질문을 입력해보세요!
               </div>
             </div>
           </div>
@@ -568,161 +565,350 @@
       </div>
 
       <footer class="bottombar">
-        <form class="search" onsubmit="return false;">
-          <input id="query" type="text" data-i18n-placeholder="placeholder" placeholder="질문을 입력하세요. 예: 최근 5년 금리 그래프 보여줘" />
-          <button id="searchBtn" type="submit" data-i18n="search">검색</button>
+        <form class="search" id="searchForm">
+          <input id="query" type="text" data-i18n-placeholder="placeholder"
+            placeholder="질문을 입력하세요. 예: 최근 5년 금리 그래프 보여줘" />
         </form>
       </footer>
     </section>
   </div>
 
   <script>
-  const i18n = {
-    ko: {
-      title: "FED Data Analyzer",
-      settings: "설정",
-      language: "언어",
-      share: "공유",
-      history: "기록",
-      newChat: "+ 새 채팅",
-      historyItem1: "최근 5년간 금리 변동",
-      historyItem2: "금리 인상기의 실업률 변화",
-      historyItem3: "GDP 성장률 비교",
-      usedIndicators: "사용한 지표",
-      indicatorPlaceholder: "그래프 생성 시 사용된 지표 여기에 표시",
-      graph: "그래프",
-      chartPlaceholder1: "그래프 여기에 생성",
-      chartPlaceholder2: "다음 그래프",
-      explanation: "설명",
-      demoUserMsg: "최근 5년간 금리 변동에 대해 알려줘",
-      demoBotMsg: "여기에 텍스트로 답변이 올라옵니다.",
-      placeholder: "질문을 입력하세요. 예: 최근 5년 금리 그래프 보여줘",
-      search: "검색",
-    },
-    en: {
-      title: "FED Data Analyzer",
-      settings: "Settings",
-      language: "Language",
-      share: "Share",
-      history: "History",
-      newChat: "+ New Chat",
-      historyItem1: "Interest rate changes (5yr)",
-      historyItem2: "Unemployment during rate hikes",
-      historyItem3: "GDP growth rate comparison",
-      usedIndicators: "Used Indicators",
-      indicatorPlaceholder: "Indicators used for chart generation appear here",
-      graph: "Graph",
-      chartPlaceholder1: "Chart will appear here",
-      chartPlaceholder2: "Next chart",
-      explanation: "Explanation",
-      demoUserMsg: "Tell me about interest rate changes in the last 5 years",
-      demoBotMsg: "The AI response will appear here.",
-      placeholder: "Ask a question. e.g. Show me interest rate chart for last 5 years",
-      search: "Search",
-    },
-    es: {
-      title: "FED Data Analyzer",
-      settings: "Configuración",
-      language: "Idioma",
-      share: "Compartir",
-      history: "Historial",
-      newChat: "+ Nueva consulta",
-      historyItem1: "Variación de tasas (5 años)",
-      historyItem2: "Desempleo durante alzas de tasas",
-      historyItem3: "Comparación del crecimiento del PIB",
-      usedIndicators: "Indicadores usados",
-      indicatorPlaceholder: "Los indicadores usados para el gráfico aparecen aquí",
-      graph: "Gráfico",
-      chartPlaceholder1: "El gráfico aparecerá aquí",
-      chartPlaceholder2: "Siguiente gráfico",
-      explanation: "Explicación",
-      demoUserMsg: "Muéstrame los cambios en tasas de interés de los últimos 5 años",
-      demoBotMsg: "La respuesta aparecerá aquí.",
-      placeholder: "Haz una pregunta. Ej: Muéstrame el gráfico de tasas de los últimos 5 años",
-      search: "Buscar",
-    }
-  };
-
-  function setLanguage(lang) {
-    const dict = i18n[lang];
-    // 텍스트 교체
-    document.querySelectorAll("[data-i18n]").forEach(el => {
-      const key = el.dataset.i18n;
-      if (dict[key]) el.textContent = dict[key];
-    });
-    // placeholder 교체
-    document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
-      const key = el.dataset.i18nPlaceholder;
-      if (dict[key]) el.placeholder = dict[key];
-    });
-
-    localStorage.setItem("lang", lang); // 새로고침 후에도 유지
-  }
-
-  // 페이지 로드 시 저장된 언어 적용
-  window.addEventListener("DOMContentLoaded", () => {
-    const saved = localStorage.getItem("lang") || "ko";
-    setLanguage(saved);
-
-    // 햄버거 메뉴 (모바일 사이드바 드로어)
-    const hamburgerBtn = document.getElementById("hamburgerBtn");
-    const sidebar = document.querySelector(".sidebar");
-    const overlay = document.getElementById("sidebarOverlay");
-
-    function openSidebar() {
-      sidebar.classList.add("open");
-      overlay.classList.add("active");
-      document.body.style.overflow = "hidden";
-    }
-
-    function closeSidebar() {
-      sidebar.classList.remove("open");
-      overlay.classList.remove("active");
-      document.body.style.overflow = "";
-    }
-
-    hamburgerBtn.addEventListener("click", () => {
-      sidebar.classList.contains("open") ? closeSidebar() : openSidebar();
-    });
-
-    overlay.addEventListener("click", closeSidebar);
-
-    // 화면 크기가 커지면 드로어 상태 초기화
-    window.addEventListener("resize", () => {
-      if (window.innerWidth > 768) {
-        closeSidebar();
+    const i18n = {
+      ko: {
+        title: "FED Data Analyzer",
+        settings: "설정",
+        language: "언어",
+        share: "공유",
+        history: "기록",
+        newChat: "+ 새 채팅",
+        historyItem1: "최근 5년간 금리 변동",
+        historyItem2: "금리 인상기의 실업률 변화",
+        historyItem3: "GDP 성장률 비교",
+        usedIndicators: "사용한 지표",
+        indicatorPlaceholder: "그래프 생성 시 사용된 지표 여기에 표시",
+        graph: "그래프",
+        chartPlaceholder1: "그래프 여기에 생성",
+        chartPlaceholder2: "다음 그래프",
+        explanation: "설명",
+        demoUserMsg: "최근 5년간 금리 변동에 대해 알려줘",
+        demoBotMsg: "여기에 텍스트로 답변이 올라옵니다.",
+        placeholder: "질문을 입력하세요. 예: 최근 5년 금리 그래프 보여줘",
+        search: "검색",
+      },
+      en: {
+        title: "FED Data Analyzer",
+        settings: "Settings",
+        language: "Language",
+        share: "Share",
+        history: "History",
+        newChat: "+ New Chat",
+        historyItem1: "Interest rate changes (5yr)",
+        historyItem2: "Unemployment during rate hikes",
+        historyItem3: "GDP growth rate comparison",
+        usedIndicators: "Used Indicators",
+        indicatorPlaceholder: "Indicators used for chart generation appear here",
+        graph: "Graph",
+        chartPlaceholder1: "Chart will appear here",
+        chartPlaceholder2: "Next chart",
+        explanation: "Explanation",
+        demoUserMsg: "Tell me about interest rate changes in the last 5 years",
+        demoBotMsg: "The AI response will appear here.",
+        placeholder: "Ask a question. e.g. Show me interest rate chart for last 5 years",
+        search: "Search",
+      },
+      es: {
+        title: "FED Data Analyzer",
+        settings: "Configuración",
+        language: "Idioma",
+        share: "Compartir",
+        history: "Historial",
+        newChat: "+ Nueva consulta",
+        historyItem1: "Variación de tasas (5 años)",
+        historyItem2: "Desempleo durante alzas de tasas",
+        historyItem3: "Comparación del crecimiento del PIB",
+        usedIndicators: "Indicadores usados",
+        indicatorPlaceholder: "Los indicadores usados para el gráfico aparecen aquí",
+        graph: "Gráfico",
+        chartPlaceholder1: "El gráfico aparecerá aquí",
+        chartPlaceholder2: "Siguiente gráfico",
+        explanation: "Explicación",
+        demoUserMsg: "Muéstrame los cambios en tasas de interés de los últimos 5 años",
+        demoBotMsg: "La respuesta aparecerá aquí.",
+        placeholder: "Haz una pregunta. Ej: Muéstrame el gráfico de tasas de los últimos 5 años",
+        search: "Buscar",
       }
-    });
+    };
 
-    // 설정 메뉴 클릭 토글
-    const settingsBtn = document.querySelector(".icon-btn");
-    const settingsMenu = document.querySelector(".settings-menu");
-    const langBtn = document.querySelector(".menu-item-wrap .menu-item");
-    const submenu = document.querySelector(".submenu");
+    let currentQuestion = "";
 
-    settingsBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      settingsMenu.classList.toggle("open");
-      // 설정 메뉴 닫힐 때 서브메뉴도 닫기
-      if (!settingsMenu.classList.contains("open")) {
+    function getHistory() {
+      try {
+        return JSON.parse(localStorage.getItem('chatHistory') || '[]');
+      } catch { return []; }
+    }
+
+    function saveHistory(query) {
+      if (!query) return;
+      let history = getHistory();
+      // Remove duplicate if exists, push to front
+      history = history.filter(item => item !== query);
+      history.unshift(query);
+      if (history.length > 20) history = history.slice(0, 20);
+      localStorage.setItem('chatHistory', JSON.stringify(history));
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const historyList = document.getElementById("historyList");
+      const history = getHistory();
+      historyList.innerHTML = history.map(item => `<div class="chat-item" onclick="triggerSearch('${item.replace(/'/g, "\\'")}')">${item}</div>`).join("");
+    }
+
+    function triggerSearch(query) {
+      const queryInput = document.getElementById("query");
+      queryInput.value = query;
+      document.querySelector(".search").dispatchEvent(new Event('submit', { cancelable: true }));
+      // On mobile, close sidebar if open
+      const sidebar = document.querySelector(".sidebar");
+      if (sidebar.classList.contains("open")) {
+        sidebar.classList.remove("open");
+        document.getElementById("sidebarOverlay").classList.remove("active");
+        document.body.style.overflow = "";
+      }
+    }
+
+    function setLanguage(lang) {
+      const dict = i18n[lang];
+      // 텍스트 교체
+      document.querySelectorAll("[data-i18n]").forEach(el => {
+        const key = el.dataset.i18n;
+        if (dict[key]) el.textContent = dict[key];
+      });
+      // placeholder 교체
+      document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
+        const key = el.dataset.i18nPlaceholder;
+        if (dict[key]) el.placeholder = dict[key];
+      });
+
+      localStorage.setItem("lang", lang); // 새로고침 후에도 유지
+    }
+
+    // 페이지 로드 시 저장된 언어 적용
+    window.addEventListener("DOMContentLoaded", () => {
+      const saved = localStorage.getItem("lang") || "ko";
+      setLanguage(saved);
+      renderHistory();
+
+      // 햄버거 메뉴 (모바일 사이드바 드로어)
+      const hamburgerBtn = document.getElementById("hamburgerBtn");
+      const sidebar = document.querySelector(".sidebar");
+      const overlay = document.getElementById("sidebarOverlay");
+
+      function openSidebar() {
+        sidebar.classList.add("open");
+        overlay.classList.add("active");
+        document.body.style.overflow = "hidden";
+      }
+
+      function closeSidebar() {
+        sidebar.classList.remove("open");
+        overlay.classList.remove("active");
+        document.body.style.overflow = "";
+      }
+
+      hamburgerBtn.addEventListener("click", () => {
+        sidebar.classList.contains("open") ? closeSidebar() : openSidebar();
+      });
+
+      overlay.addEventListener("click", closeSidebar);
+
+      // 화면 크기가 커지면 드로어 상태 초기화
+      window.addEventListener("resize", () => {
+        if (window.innerWidth > 768) {
+          closeSidebar();
+        }
+      });
+
+      // 설정 메뉴 클릭 토글
+      const settingsBtn = document.querySelector(".icon-btn");
+      const settingsMenu = document.querySelector(".settings-menu");
+      const langBtn = document.querySelector(".menu-item-wrap .menu-item");
+      const submenu = document.querySelector(".submenu");
+
+      settingsBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        settingsMenu.classList.toggle("open");
+        // 설정 메뉴 닫힐 때 서브메뉴도 닫기
+        if (!settingsMenu.classList.contains("open")) {
+          submenu.classList.remove("open");
+        }
+      });
+
+      langBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        submenu.classList.toggle("open");
+      });
+
+      // 바깥 클릭 시 모든 메뉴 닫기
+      document.addEventListener("click", () => {
+        settingsMenu.classList.remove("open");
         submenu.classList.remove("open");
+      });
+
+      // 메뉴 내부 클릭은 닫힘 방지
+      settingsMenu.addEventListener("click", (e) => e.stopPropagation());
+
+      // Share 버튼 로직
+      document.getElementById("shareBtn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!currentQuestion) {
+          alert("공유할 질문이 아직 없습니다.");
+          return;
+        }
+        const url = new URL(window.location.origin + window.location.pathname);
+        url.searchParams.set("q", currentQuestion);
+        navigator.clipboard.writeText(url.toString()).then(() => {
+          alert("링크가 복사되었습니다! 이 링크를 공유하면 질문과 답변, 그래프를 함께 볼 수 있습니다.");
+        });
+        settingsMenu.classList.remove("open");
+      });
+
+      // New Chat 버튼 로직
+      const chartsArea = document.getElementById("chartsArea");
+      const answerArea = document.getElementById("answerArea");
+      const indicatorBox = document.querySelector(".used-indicator-box");
+      const queryInput = document.getElementById("query");
+
+      document.getElementById("newChatBtn").addEventListener("click", () => {
+        currentQuestion = "";
+        queryInput.value = "";
+        chartsArea.innerHTML = `<div class="chart-placeholder" data-i18n="chartPlaceholder1">${i18n[localStorage.getItem('lang') || 'ko'].chartPlaceholder1}</div>`;
+        answerArea.innerHTML = `
+          <div class="chat-message bot-message">
+            <div class="message-bubble" data-i18n="demoBotMsg">
+              ${i18n[localStorage.getItem('lang') || 'ko'].demoBotMsg}
+            </div>
+          </div>
+        `;
+        indicatorBox.innerHTML = `<p class="used-indicator-text" data-i18n="indicatorPlaceholder">${i18n[localStorage.getItem('lang') || 'ko'].indicatorPlaceholder}</p>`;
+      });
+
+      // ── 채팅 및 차트 연동 로직 ──
+      const searchForm = document.querySelector(".search");
+
+      searchForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const question = queryInput.value.trim();
+        if (!question) return;
+
+        currentQuestion = question;
+
+        // 1. 사용자 질문을 채팅창에 추가
+        const userMsgHtml = `
+        <div class="chat-message user-message">
+          <div class="message-bubble">${question}</div>
+        </div>
+      `;
+        answerArea.insertAdjacentHTML('beforeend', userMsgHtml);
+        queryInput.value = '';
+
+        // 2. 봇 로딩 메시지 추가
+        const loadingId = "loading-" + Date.now();
+        const loadingHtml = `
+        <div class="chat-message bot-message" id="${loadingId}">
+          <div class="message-bubble">📡 연준 문서 분석 중...</div>
+        </div>
+      `;
+        answerArea.insertAdjacentHTML('beforeend', loadingHtml);
+        answerArea.scrollTop = answerArea.scrollHeight;
+
+        try {
+          // 백엔드 /api/chat 호출
+          const chatRes = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: question })
+          });
+          const chatData = await chatRes.json();
+
+          // 로딩 메시지를 실제 답변으로 변경
+          const botBubble = document.getElementById(loadingId).querySelector('.message-bubble');
+          botBubble.innerHTML = chatData.answer.replace(/\n/g, "<br>");
+
+          // 출처(sources) 추가
+          if (chatData.sources && chatData.sources.length > 0) {
+            const sourcesHtml = chatData.sources.map(s => `<span class="source-tag" style="display:inline-block; background:#1e293b; color:#93c5fd; padding:3px 8px; border-radius:6px; font-size:12px; margin: 8px 4px 0 0;">📄 ${s}</span>`).join("");
+            botBubble.insertAdjacentHTML('beforeend', `<div>${sourcesHtml}</div>`);
+          }
+          answerArea.scrollTop = answerArea.scrollHeight;
+
+          // 3. 차트 데이터 렌더링 호출
+          if (chatData.tickers && chatData.tickers.length > 0) {
+            // 기존 초기 플레이스홀더가 있다면 제거
+            const placeholder = chartsArea.querySelector('.chart-placeholder');
+            if (placeholder) placeholder.remove();
+
+            // 로딩 상태 추가 (맨 뒤에 누적)
+            const loadingChartId = "loading-chart-" + Date.now();
+            const loadingChartHtml = `<div id="${loadingChartId}" style="text-align:center; padding:20px 0; color:#94a3b8; font-size:14px; border-bottom: 1px solid #1f2937; margin-bottom: 20px;">차트 데이터 불러오는 중...</div>`;
+            chartsArea.insertAdjacentHTML('beforeend', loadingChartHtml);
+            chartsArea.scrollTop = chartsArea.scrollHeight;
+
+            // 사용한 지표 업데이트
+            const indicatorsHtml = chatData.tickers.map(t => `<div style="margin-bottom:6px;"><code style="background:#1e293b; color:#93c5fd; padding:2px 6px; border-radius:4px;">${t[0]}</code> <span style="color:#d1d5db; font-size:13px;">${t[1]}</span></div>`).join("");
+            indicatorBox.innerHTML = indicatorsHtml;
+
+            const chartRes = await fetch("/api/chart", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                tickers: chatData.tickers,
+                start_yr: chatData.start_yr,
+                end_yr: chatData.end_yr,
+                chart_type: chatData.chart_type || "line"
+              })
+            });
+
+            const loadingContainer = document.getElementById(loadingChartId);
+            if (chartRes.ok) {
+              const plotJson = await chartRes.json();
+
+              // 로딩 초기화 후 차트 마운트
+              loadingContainer.innerHTML = "";
+              loadingContainer.style.textAlign = "left";
+              loadingContainer.style.padding = "0";
+
+              const plotDiv = document.createElement("div");
+              plotDiv.style.width = "100%";
+              plotDiv.style.height = "350px";
+              loadingContainer.appendChild(plotDiv);
+              Plotly.newPlot(plotDiv, plotJson.data, plotJson.layout, { displayModeBar: false, responsive: true });
+
+              chartsArea.scrollTop = chartsArea.scrollHeight;
+              saveHistory(question);
+            } else {
+              loadingContainer.innerHTML = `<span style="color:#ef4444">차트를 불러오지 못했습니다.</span>`;
+            }
+          } else {
+            saveHistory(question);
+          }
+
+        } catch (err) {
+          console.error(err);
+          const botBubble = document.getElementById(loadingId).querySelector('.message-bubble');
+          botBubble.innerHTML = "오류가 발생했습니다: " + err.message;
+        }
+      });
+
+      // 초기 URL 파라미터 확인 및 자동 실행 로직
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlQ = urlParams.get("q");
+      if (urlQ) {
+        triggerSearch(urlQ);
       }
     });
-
-    langBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      submenu.classList.toggle("open");
-    });
-
-    // 바깥 클릭 시 모든 메뉴 닫기
-    document.addEventListener("click", () => {
-      settingsMenu.classList.remove("open");
-      submenu.classList.remove("open");
-    });
-
-    // 메뉴 내부 클릭은 닫힘 방지
-    settingsMenu.addEventListener("click", (e) => e.stopPropagation());
-  });
-</script>
+  </script>
 </body>
+
 </html>

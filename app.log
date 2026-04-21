@@ -1,0 +1,16 @@
+ * Serving Flask app 'app'
+ * Debug mode: on
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.166.14.40:5001
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [17/Apr/2026 13:04:09] "[36mGET / HTTP/1.1[0m" 304 -
+127.0.0.1 - - [17/Apr/2026 13:04:09] "[36mGET /FED_logo.png HTTP/1.1[0m" 304 -
+127.0.0.1 - - [17/Apr/2026 13:04:17] "POST /api/chat HTTP/1.1" 200 -
+127.0.0.1 - - [17/Apr/2026 13:04:21] "POST /api/chart HTTP/1.1" 200 -
+127.0.0.1 - - [17/Apr/2026 13:14:18] "POST /api/chat HTTP/1.1" 200 -
+127.0.0.1 - - [17/Apr/2026 13:14:20] "POST /api/chart HTTP/1.1" 200 -
+Run time of job "update_vector_db (trigger: cron[hour='0', minute='0'], next run at: 2026-04-19 00:00:00 KST)" was missed by 6:54:26.942289
+Run time of job "update_vector_db (trigger: cron[hour='0', minute='0'], next run at: 2026-04-21 00:00:00 KST)" was missed by 14:59:28.353142
+Run time of job "update_vector_db (trigger: cron[hour='0', minute='0'], next run at: 2026-04-22 00:00:00 KST)" was missed by 12:58:57.577657

@@ -1,126 +1,105 @@
-import streamlit as st
-import pandas as pd
 import os
 import re
-import random
+import datetime
+import pandas as pd
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
 from fredapi import Fred
+import ssl
+
+# Fix macOS Python 3 SSL Certificate error for fredapi
+ssl._create_default_https_context = ssl._create_unverified_context
+
 from dotenv import load_dotenv
 import plotly.graph_objects as go
+import json
 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_chroma import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
+from apscheduler.schedulers.background import BackgroundScheduler
 
+# 환경 변수 로드
 load_dotenv()
-
-openai_api_key = os.getenv("OPENAI_API_KEY") # 환경 변수에서 가져오기
+openai_api_key = os.getenv("OPENAI_API_KEY")
 FRED_API_KEY = os.getenv("FRED_API_KEY", "230a44e2a7c17bf323c7ad1bcbf932b7").strip()
 
-from apscheduler.schedulers.background import BackgroundScheduler
-import datetime
-import streamlit as st
+# Flask 앱 초기화 및 정적 파일 경로 지정 (현재 디렉토리 기준)
+app = Flask(__name__, static_folder=".")
+CORS(app)
 
-st.set_page_config(page_title="Fed-Watcher AI", layout="wide", initial_sidebar_state="expanded")
+# ── SEP 데이터 로드 ──
+SEP_CONTEXT = ""
+SEP_LATEST_DATA = {}
+try:
+    if os.path.exists("sep_values.csv"):
+        df_sep = pd.read_csv("sep_values.csv")
+        if not df_sep.empty:
+            latest_row = df_sep.iloc[-1]
+            SEP_LATEST_DATA = latest_row.to_dict()
+            date = str(latest_row['Date'])
+            SEP_CONTEXT = f"--- LATEST FED SEP PROJECTIONS (As of {date}) ---\n"
+            SEP_CONTEXT += f"GDP Growth: Year 1: {latest_row.get('GDP_Year1')}%, Year 2: {latest_row.get('GDP_Year2')}%, Year 3: {latest_row.get('GDP_Year3')}%, Longer Run: {latest_row.get('GDP_LongerRun')}%\n"
+            SEP_CONTEXT += f"Unemployment Rate: Year 1: {latest_row.get('UNRATE_Year1')}%, Year 2: {latest_row.get('UNRATE_Year2')}%, Year 3: {latest_row.get('UNRATE_Year3')}%, Longer Run: {latest_row.get('UNRATE_LongerRun')}%\n"
+            SEP_CONTEXT += f"PCE Inflation: Year 1: {latest_row.get('PCE_Year1')}%, Year 2: {latest_row.get('PCE_Year2')}%, Year 3: {latest_row.get('PCE_Year3')}%, Longer Run: {latest_row.get('PCE_LongerRun')}%\n"
+            SEP_CONTEXT += f"Core PCE Inflation: Year 1: {latest_row.get('CORE_PCE_Year1')}%, Year 2: {latest_row.get('CORE_PCE_Year2')}%, Year 3: {latest_row.get('CORE_PCE_Year3')}%\n"
+            SEP_CONTEXT += f"Fed Funds Rate: Year 1: {latest_row.get('FEDFUNDS_Year1')}%, Year 2: {latest_row.get('FEDFUNDS_Year2')}%, Year 3: {latest_row.get('FEDFUNDS_Year3')}%, Longer Run: {latest_row.get('FEDFUNDS_LongerRun')}%\n"
+            SEP_CONTEXT += "-"*40
+except Exception as e:
+    print(f"Error loading SEP data: {e}")
 
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap');
-.stApp { background-color: #0D1B2A; font-family: 'DM Sans', sans-serif; }
-[data-testid="stSidebar"] { background-color: #112236; border-right: 1px solid #1E3A5F; }
-[data-testid="stSidebar"] * { color: #C8D8E8 !important; }
-.main .block-container { padding: 1.5rem 2rem; max-width: 100%; }
-.fed-title { font-family: 'DM Serif Display', serif; font-size: 1.6rem; color: #E8F0F8; letter-spacing: 0.02em; margin-bottom: 0.2rem; }
-.fed-subtitle { font-size: 0.78rem; color: #6B8FAF; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1.5rem; }
-.section-label { font-size: 0.75rem; color: #6B8FAF; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.6rem; }
-.chat-bubble-user { background: #1E3A5F; border: 1px solid #2A5080; border-radius: 12px 12px 4px 12px; padding: 0.8rem 1.1rem; color: #E8F0F8; font-size: 0.92rem; margin-bottom: 0.5rem; max-width: 88%; margin-left: auto; }
-.chat-bubble-ai { background: #162A3F; border: 1px solid #1E3A5F; border-radius: 4px 12px 12px 12px; padding: 0.8rem 1.1rem; color: #C8D8E8; font-size: 0.92rem; margin-bottom: 0.3rem; }
-.source-tag { display: inline-block; background: #1A3350; border: 1px solid #2A5070; border-radius: 6px; padding: 2px 9px; font-size: 0.74rem; color: #7BAFD4; margin: 3px 3px 3px 0; }
-.history-item { background: #162A3F; border: 1px solid #1E3A5F; border-radius: 8px; padding: 0.45rem 0.8rem; color: #9BB8D4; font-size: 0.81rem; margin-bottom: 5px; }
-.empty-chart { background: #112236; border: 1px dashed #1E3A5F; border-radius: 12px; padding: 3.5rem 1rem; text-align: center; color: #3A6080; font-size: 0.88rem; }
-.stButton > button { background: #162A3F !important; border: 1px solid #2A5080 !important; color: #9BB8D4 !important; border-radius: 8px !important; font-size: 0.82rem !important; padding: 0.4rem 0.8rem !important; width: 100%; text-align: left !important; transition: all 0.2s !important; }
-.stButton > button:hover { background: #1E3A5F !important; color: #E8F0F8 !important; border-color: #4A90C4 !important; }
-div[data-testid="stHorizontalBlock"] .stButton > button { width: auto !important; padding: 0.3rem 1rem !important; background: #1A3A6A !important; border: 1px solid #4A90C4 !important; color: #7BAFD4 !important; font-size: 0.78rem !important; letter-spacing: 0.05em !important; }
-div[data-testid="stHorizontalBlock"] .stButton > button:hover { background: #4A90C4 !important; color: #E8F0F8 !important; }
-p, li, span { color: #C8D8E8; }
-h1, h2, h3 { color: #E8F0F8 !important; }
-hr { border-color: #1E3A5F; margin: 1rem 0; }
-</style>
-""", unsafe_allow_html=True)
-
-st.title("🦅 Fed-Watcher: Federal Reserve Minutes Analysis AI")
-
-# 2. 스케줄러를 통한 자동 수집 및 ChromaDB 업데이트
+# ── 1. 스케줄러: 연준 문서 크롤링 ────────────────────────────────────
 def update_vector_db():
-    """
-    정기적으로 최신 FOMC 회의록 및 연설문을 크롤링하여 
-    ChromaDB(./fed_db)에 문서를 추가하는 로직입니다.
-    """
     print(f"[{datetime.datetime.now()}] 신규 연설문/회의록 수집 & ChromaDB 업데이트 실행 중...")
-    
     try:
         import requests
         from bs4 import BeautifulSoup
         import xml.etree.ElementTree as ET
         from langchain.text_splitter import RecursiveCharacterTextSplitter
         from langchain.docstore.document import Document
-        from langchain_openai import OpenAIEmbeddings
-        from langchain_community.vectorstores import Chroma
         
-        # 1. RSS 피드에서 최신 회의록/성명서 URL 추출
         rss_url = "https://www.federalreserve.gov/feeds/press_monetary.xml"
         response = requests.get(rss_url)
         root = ET.fromstring(response.content)
         
         urls_to_scrape = []
-        for item in root.findall('./channel/item')[:3]:  # 최근 3개의 자료만 우선 수집
+        for item in root.findall('./channel/item')[:3]:
             link = item.find('link').text
             if link:
                 urls_to_scrape.append(link)
                 
-        # 2. URL에서 텍스트 수집 및 Document 객체 생성
         docs = []
         headers = {'User-Agent': 'Mozilla/5.0'}
         for url in urls_to_scrape:
             page_resp = requests.get(url, headers=headers)
             soup = BeautifulSoup(page_resp.text, 'html.parser')
-            # 연준 사이트 본문 영역 보통 'article' 클래스/id 안에 존재
             article = soup.find('div', id='article')
             if not article:
                 article = soup.find('body')
-                
             text = article.get_text(separator='\n', strip=True) if article else ""
             if text:
                 docs.append(Document(page_content=text, metadata={"source": url}))
                 
-        # 3. 텍스트 청크 분할
         if docs:
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
             split_docs = text_splitter.split_documents(docs)
-            
-            # 4. 기존 DB에 새 문서 추가
             embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
             db = Chroma(persist_directory="./fed_db", embedding_function=embeddings)
             db.add_documents(split_docs)
             print(f"[{datetime.datetime.now()}] 업데이트 완료: {len(split_docs)}개 청크 추가됨.")
         else:
             print(f"[{datetime.datetime.now()}] 수집할 문서가 없습니다.")
-            
     except Exception as e:
         print(f"[{datetime.datetime.now()}] 업데이트 중 오류 발생: {e}")
 
-@st.cache_resource
-def init_scheduler():
-    scheduler = BackgroundScheduler(timezone="Asia/Seoul")
-    # 매일 밤 12시(자정)에 업데이트 실행
-    scheduler.add_job(update_vector_db, 'cron', hour=0, minute=0)
-    scheduler.start()
-    return scheduler
+# 스케줄러를 한 번만 실행되도록 설정
+scheduler = BackgroundScheduler(timezone="Asia/Seoul")
+scheduler.add_job(update_vector_db, 'cron', hour=0, minute=0)
+scheduler.start()
 
-# 앱 구동 시 스케줄러 초기화 (캐싱을 통해 1회만 실행됨)
-init_scheduler()
-
+# ── 2. 지표 설정 및 분할기 ──────────────────────────────────────────
 INDICATORS = {
     "FEDFUNDS": "기준금리 (Fed Funds Rate)",
     "DGS10": "10년물 국채금리",
@@ -134,75 +113,18 @@ INDICATORS = {
     "M2SL": "M2 통화량",
 }
 
-# 3.사용자 질문 분석 함수 (단위 및 날짜 추출)
-def analyze_user_prompt(prompt):
-    prompt_lower = prompt.lower()
-    
-    # 지표 및 티커 결정 (main 브랜치의 확장된 KEYWORD_MAP 로직 반영)
-    KEYWORD_MAP = {
-        ("inflation", "price", "cpi", "물가", "인플레"): ("CPIAUCSL", "지수 (Index, 1982-84=100)"),
-        ("pce",): ("PCEPI", "지수"),
-        ("unemployment", "employment", "job", "고용", "실업", "일자리"): ("UNRATE", "비율 (%)"),
-        ("payroll", "취업자", "고용자"): ("PAYEMS", "천 명"),
-        ("gdp", "growth", "economy", "성장", "경기"): ("GDPC1", "10억 달러 (Billions of $)"),
-        ("10년", "10-year", "dgs10", "장기금리"): ("DGS10", "금리 (%)"),
-        ("2년", "2-year", "dgs2", "단기금리"): ("DGS2", "금리 (%)"),
-        ("금리차", "yield curve", "t10y2y", "장단기"): ("T10Y2Y", "금리차 (%)"),
-        ("m2", "통화량", "money supply"): ("M2SL", "십억 달러"),
-        ("rate", "금리", "interest", "fed funds", "기준금리"): ("FEDFUNDS", "금리 (%)"),
-    }
-    
-    for keywords, (ticker, unit) in KEYWORD_MAP.items():
-        if any(keyword in prompt_lower for keyword in keywords):
-            name = INDICATORS.get(ticker, ticker)
-            return ticker, name, unit
-
-    # 기본값 반환
-    return "FEDFUNDS", INDICATORS["FEDFUNDS"], "금리 (%)"
-
-EXAMPLE_QUESTIONS = [
-    "최근 5년간 금리 변동 알려줘",
-    "금리 인상기의 실업률 변화는?",
-    "GDP 성장률 비교해줘",
-    "2022년 인플레이션 상황은?",
-    "파월이 최근에 뭐라고 했어?",
-    "연준이 금리를 올린 이유가 뭐야?",
-]
-
-LOADING_MESSAGES = [
-    "📡 연준 문서 분석 중...",
-    "🔍 회의록에서 관련 내용 검색 중...",
-    "🦅 파월 의장의 발언을 찾는 중...",
-    "📊 FRED 데이터와 연결 중...",
-    "🏦 연준 아카이브 탐색 중...",
-]
-
-CHART_TYPES = {"Line": "line", "Bar": "bar", "Scatter": "scatter", "Area": "area"}
-
-PLOTLY_LAYOUT = dict(
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="#0D1B2A",
-    font=dict(color="#C8D8E8", family="DM Sans"),
-    xaxis=dict(
-        showgrid=True, gridcolor="#1E3A5F", gridwidth=0.5,
-        tickfont=dict(color="#6B8FAF", size=11),
-        tickformat="%Y", dtick="M12",
-        showline=False, zeroline=False,
-    ),
-    yaxis=dict(
-        showgrid=True, gridcolor="#1E3A5F", gridwidth=0.5,
-        tickfont=dict(color="#6B8FAF", size=11),
-        showline=False, zeroline=False,
-    ),
-    legend=dict(
-        bgcolor="rgba(17,34,54,0.8)",
-        bordercolor="#1E3A5F", borderwidth=1,
-        font=dict(color="#C8D8E8", size=11),
-    ),
-    margin=dict(l=10, r=10, t=30, b=10),
-    hovermode="x unified",
-    hoverlabel=dict(bgcolor="#162A3F", bordercolor="#2A5080", font=dict(color="#E8F0F8")),
-)
+KEYWORD_MAP = {
+    ("inflation", "price", "cpi", "물가", "인플레"): ("CPIAUCSL", "지수 (Index, 1982-84=100)"),
+    ("pce",): ("PCEPI", "지수"),
+    ("unemployment", "employment", "job", "고용", "실업", "일자리"): ("UNRATE", "비율 (%)"),
+    ("payroll", "취업자", "고용자"): ("PAYEMS", "천 명"),
+    ("gdp", "growth", "economy", "성장", "경기"): ("GDPC1", "10억 달러 (Billions of $)"),
+    ("10년", "10-year", "dgs10", "장기금리"): ("DGS10", "금리 (%)"),
+    ("2년", "2-year", "dgs2", "단기금리"): ("DGS2", "금리 (%)"),
+    ("금리차", "yield curve", "t10y2y", "장단기"): ("T10Y2Y", "금리차 (%)"),
+    ("m2", "통화량", "money supply"): ("M2SL", "십억 달러"),
+    ("rate", "금리", "interest", "fed funds", "기준금리"): ("FEDFUNDS", "금리 (%)"),
+}
 
 def analyze_prompt(prompt: str):
     lower = prompt.lower()
@@ -215,9 +137,16 @@ def analyze_prompt(prompt: str):
     years = re.findall(r'\b(20\d{2})\b', prompt)
     start_year = min(years) if years else None
     end_year = max(years) if years else None
-    return tickers, start_year, end_year
+    
+    recent_years = re.search(r'최근\s*(\d+)년', prompt)
+    if recent_years and not start_year:
+        n_years = int(recent_years.group(1))
+        start_year = str(datetime.datetime.now().year - n_years)
 
-@st.cache_data(show_spinner=False)
+    is_relation = any(w in lower for w in ["relationship", "관계", "상관", "비교"])
+    chart_type = "scatter_xy" if is_relation and len(tickers) == 2 else "line"
+    return tickers, start_year, end_year, chart_type
+
 def load_fred_data(ticker: str):
     try:
         fred = Fred(api_key=FRED_API_KEY)
@@ -228,36 +157,38 @@ def load_fred_data(ticker: str):
     except Exception as e:
         return pd.DataFrame()
 
-@st.cache_resource(show_spinner=False)
-def load_rag():
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-    llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
-    db = Chroma(persist_directory="./fed_db", embedding_function=embeddings)
-    retriever = db.as_retriever(search_kwargs={"k": 4})
+# ── 3. Langchain RAG 초기화 ──────────────────────────────────────────
+embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
+db = Chroma(persist_directory="./fed_db", embedding_function=embeddings)
+retriever = db.as_retriever(search_kwargs={"k": 4})
 
-    template = """You are a senior Federal Reserve analyst with deep expertise in monetary policy.
-Answer the question based on the provided Fed documents (meeting minutes, speeches).
+template = f"""You are a senior Federal Reserve analyst with deep expertise in monetary policy.
+Answer the question based on the provided Fed documents (meeting minutes, speeches) and the latest SEP projections.
 
 Rules:
 - If the question is in Korean, answer in Korean. If in English, answer in English.
-- Be specific and cite dates/meetings when relevant.
+- Be specific and cite numbers and dates/meetings when relevant.
 - Keep answers concise but informative (3-5 sentences).
 - If the documents don't contain enough info, say so honestly.
+- NEVER apologize for not being able to show graphs or charts. The system automatically renders graphs in the user interface based on the user's keywords. Just analyze the requested topic based on text data as if the chart is naturally provided below.
+
+Latest SEP Forward Projections:
+{SEP_CONTEXT}
 
 Context from Fed documents:
-{context}
+{{context}}
 
-Question: {question}
+Question: {{question}}
 
 Answer:"""
-    prompt_template = ChatPromptTemplate.from_template(template)
-    chain = (
-        {"context": retriever | (lambda docs: "\n\n".join([d.page_content for d in docs])), "question": RunnablePassthrough()}
-        | prompt_template | llm | StrOutputParser()
-    )
-    return chain, retriever
+prompt_template = ChatPromptTemplate.from_template(template)
+rag_chain = (
+    {"context": retriever | (lambda docs: "\n\n".join([d.page_content for d in docs])), "question": RunnablePassthrough()}
+    | prompt_template | llm | StrOutputParser()
+)
 
-def get_sources(retriever, question: str):
+def get_sources(question: str):
     try:
         docs = retriever.invoke(question)
         sources = []
@@ -271,6 +202,36 @@ def get_sources(retriever, question: str):
     except:
         return []
 
+# ── 4. 라우팅 ──────────────────────────────────────────
+
+@app.route("/")
+def index():
+    return send_from_directory(".", "index.html")
+
+@app.route("/<path:path>")
+def serve_static(path):
+    return send_from_directory(".", path)
+
+@app.route("/api/chat", methods=["POST"])
+def api_chat():
+    data = request.json
+    question = data.get("message", "")
+    if not question:
+        return jsonify({"error": "No message provided"}), 400
+
+    tickers, start_yr, end_yr, chart_type = analyze_prompt(question)
+    answer = rag_chain.invoke(question)
+    sources = get_sources(question)
+
+    return jsonify({
+        "answer": answer,
+        "sources": sources,
+        "tickers": tickers,
+        "start_yr": start_yr,
+        "end_yr": end_yr,
+        "chart_type": chart_type
+    })
+
 def make_trace(chart_type, x, y, name, color, secondary=False):
     opacity = 0.7 if secondary else 1.0
     if chart_type == "bar":
@@ -283,160 +244,162 @@ def make_trace(chart_type, x, y, name, color, secondary=False):
                          fill="tozeroy", line=dict(color=color, width=2),
                          fillcolor=color.replace(")", f",{0.15})").replace("rgb", "rgba") if "rgb" in color else color,
                          opacity=opacity)
-    else:  # line (default)
+    else:  # line
         return go.Scatter(x=x, y=y, name=name, mode="lines",
                          line=dict(color=color, width=2), opacity=opacity)
 
-def render_chart(tickers, start_yr, end_yr, chart_type="line"):
+PLOTLY_LAYOUT = dict(
+    paper_bgcolor="#FFFBF0",
+    plot_bgcolor="#FFFBF0",
+    font=dict(color="#1f2937", family="Pretendard"),
+    xaxis=dict(
+        title="연도 (Year)",
+        showgrid=True, gridcolor="#e5e7eb", gridwidth=0.5,
+        tickfont=dict(color="#4b5563", size=11),
+        tickformat="%Y",
+        showline=False, zeroline=False,
+    ),
+    yaxis=dict(
+        showgrid=True, gridcolor="#e5e7eb", gridwidth=0.5,
+        tickfont=dict(color="#4b5563", size=11),
+        showline=False, zeroline=False,
+    ),
+    legend=dict(
+        orientation="h",
+        yanchor="bottom", y=1.05,
+        xanchor="right", x=1,
+        bgcolor="rgba(255,251,240,0.8)",
+        bordercolor="#cbd5e1", borderwidth=1,
+        font=dict(color="#1f2937", size=11),
+    ),
+    margin=dict(l=50, r=20, t=60, b=50),
+    hovermode="x unified",
+    hoverlabel=dict(bgcolor="#ffffff", bordercolor="#3b82f6", font=dict(color="#1f2937")),
+)
+
+@app.route("/api/chart", methods=["POST"])
+def api_chart():
+    data = request.json
+    tickers = data.get("tickers", [])
+    start_yr = data.get("start_yr")
+    end_yr = data.get("end_yr")
+    chart_type = data.get("chart_type", "line")
+
+    if not tickers:
+        return jsonify({"error": "No tickers provided"}), 400
+
     try:
-        df_scores = pd.read_csv("fed_scores.csv", encoding="utf-8-sig")
-        df_scores["Date"] = pd.to_datetime(df_scores["Date"])
-        df_scores.set_index("Date", inplace=True)
+        colors_main = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"]
 
-        colors_main = ["#4A90C4", "#5BC4A0", "#F0A050", "#E06080", "#8B70D8"]
-        hawkish_color = "#E05050"
+        if chart_type == "scatter_xy" and len(tickers) == 2:
+            t1, name1, unit1 = tickers[0]
+            t2, name2, unit2 = tickers[1]
+            df1 = load_fred_data(t1)
+            df2 = load_fred_data(t2)
+            if df1.empty or df2.empty:
+                return jsonify({"error": "No valid data to plot"}), 404
+            
+            df_combined = df1.join(df2, how="inner").dropna()
+            if start_yr: df_combined = df_combined[df_combined.index >= f"{start_yr}-01-01"]
+            if end_yr: df_combined = df_combined[df_combined.index <= f"{end_yr}-12-31"]
+            
+            if df_combined.empty:
+                return jsonify({"error": "No valid data to plot"}), 404
+            
+            fig = go.Figure(data=go.Scatter(
+                x=df_combined[t1].tolist(), y=df_combined[t2].tolist(), mode='markers',
+                marker=dict(size=6, color="#3b82f6", opacity=0.6),
+                name="Relationship"
+            ))
+            layout = PLOTLY_LAYOUT.copy()
+            layout.update(
+                title=dict(text=f"{name1} vs {name2}", font=dict(color="#1f2937", size=12), x=0),
+                xaxis=dict(title=dict(text=f"{name1} ({unit1})", font=dict(size=12, color="#4b5563")), tickformat=""),
+                yaxis=dict(title=dict(text=f"{name2} ({unit2})", font=dict(size=12, color="#4b5563"))),
+                hovermode="closest",
+                height=320,
+            )
+            fig.update_layout(**layout)
+            return fig.to_json()
 
-        for idx, (ticker, name, unit) in enumerate(tickers):
-            df_macro = load_fred_data(ticker)
-            if df_macro.empty:
+        fig = go.Figure()
+        
+        has_data = False
+        for idx, ticker_info in enumerate(tickers):
+            ticker, name, unit = ticker_info
+            df_combined = load_fred_data(ticker)
+            if df_combined.empty:
                 continue
-            df_combined = df_scores.join(df_macro, how="outer")
-            df_combined[ticker] = df_combined[ticker].ffill()
-            df_combined = df_combined.dropna(subset=["Hawkish_Score"])
+            
+            has_data = True
+
             if start_yr:
                 df_combined = df_combined[df_combined.index >= f"{start_yr}-01-01"]
             if end_yr:
                 df_combined = df_combined[df_combined.index <= f"{end_yr}-12-31"]
 
-            fig = go.Figure()
             color = colors_main[idx % len(colors_main)]
+            
+            # x축을 문자열로 변환하여 JSON 직렬화 지원 보장
+            x_vals = df_combined.index.strftime('%Y-%m-%d').tolist()
 
             # 지표 트레이스 (왼쪽 y축)
-            fig.add_trace(make_trace(chart_type, df_combined.index, df_combined[ticker], name, color))
+            fig.add_trace(make_trace(chart_type, x_vals, df_combined[ticker].tolist(), name, color))
 
-            # Hawkish Score 트레이스 (오른쪽 y축)
-            hawkish_trace = make_trace(chart_type, df_combined.index, df_combined["Hawkish_Score"],
-                                       "Hawkish Score", hawkish_color, secondary=True)
-            hawkish_trace.update(yaxis="y2")
-            fig.add_trace(hawkish_trace)
+            # SEP Projections trace (If available)
+            ticker_to_sep = {"GDPC1": "GDP", "UNRATE": "UNRATE", "PCEPI": "PCE", "FEDFUNDS": "FEDFUNDS"}
+            sep_prefix = ticker_to_sep.get(ticker)
+            if sep_prefix and SEP_LATEST_DATA:
+                try:
+                    sep_date = str(SEP_LATEST_DATA.get('Date', ''))
+                    if sep_date and len(sep_date) >= 4:
+                        base_year = int(sep_date[:4])
+                        # SEP Year 1 is usually the meeting's current year end
+                        x_proj = [f"{base_year}-12-31", f"{base_year+1}-12-31", f"{base_year+2}-12-31"]
+                        y_proj = [
+                            SEP_LATEST_DATA.get(f"{sep_prefix}_Year1"),
+                            SEP_LATEST_DATA.get(f"{sep_prefix}_Year2"),
+                            SEP_LATEST_DATA.get(f"{sep_prefix}_Year3")
+                        ]
+                        
+                        x_clean, y_clean = [], []
+                        for x_v, y_v in zip(x_proj, y_proj):
+                            if pd.notna(y_v):
+                                x_clean.append(x_v)
+                                y_clean.append(float(y_v))
+                                
+                        if x_clean:
+                            fig.add_trace(go.Scatter(
+                                x=x_clean, y=y_clean,
+                                name=f"{name} (SEP 전망)",
+                                mode="lines+markers",
+                                line=dict(color=color, width=2, dash='dot'),
+                                marker=dict(symbol="star", size=9)
+                            ))
+                except Exception as e:
+                    print(f"Error adding SEP trace: {e}")
 
-            layout = PLOTLY_LAYOUT.copy()
-            layout.update(
-                title=dict(text=f"{name} <span style='font-size:12px;color:#6B8FAF'>({unit})</span>",
-                          font=dict(color="#E8F0F8", size=14), x=0),
-                yaxis2=dict(
-                    title="Hawkish Score",
-                    overlaying="y", side="right",
-                    showgrid=False,
-                    tickfont=dict(color="#6B8FAF", size=11),
-                    range=[0, 12],
-                    zeroline=False,
-                ),
-                height=260,
-            )
-            fig.update_layout(**layout)
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        if not has_data:
+             return jsonify({"error": "No valid data to plot"}), 404
 
-    except Exception as e:
-        st.error(f"차트 오류: {e}")
-
-# ── 세션 초기화 ───────────────────────────────────────────────
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "history" not in st.session_state:
-    st.session_state.history = []
-if "chart_type" not in st.session_state:
-    st.session_state.chart_type = "line"
-
-rag_chain, retriever = load_rag()
-
-# ── 사이드바 ─────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown('<div class="fed-title">FED Data Analyzer</div>', unsafe_allow_html=True)
-    st.markdown('<div class="fed-subtitle">Federal Reserve Intelligence</div>', unsafe_allow_html=True)
-    if st.button("＋  New Chat", use_container_width=True):
-        st.session_state.messages = []
-        st.rerun()
-    st.markdown("---")
-    if st.session_state.history:
-        st.markdown('<p class="section-label">History</p>', unsafe_allow_html=True)
-        for q in reversed(st.session_state.history[-10:]):
-            short = q[:38] + "..." if len(q) > 38 else q
-            st.markdown(f'<div class="history-item">💬 {short}</div>', unsafe_allow_html=True)
-        st.markdown("---")
-    st.markdown('<p class="section-label">사용 가능한 지표</p>', unsafe_allow_html=True)
-    for ticker, name in INDICATORS.items():
-        st.markdown(
-            f"<div style='font-size:0.79rem;margin-bottom:5px;'>"
-            f"<code style='background:#1A3350;color:#7BAFD4;padding:1px 5px;border-radius:4px;font-size:0.73rem;'>{ticker}</code>"
-            f" <span style='color:#9BB8D4;'>{name}</span></div>",
-            unsafe_allow_html=True
+        layout = PLOTLY_LAYOUT.copy()
+        
+        title_name = ", ".join([t[1] for t in tickers])
+        units = ", ".join(list(set([t[2] for t in tickers])))
+        
+        layout.update(
+            title=dict(text=f"{title_name}", font=dict(color="#1f2937", size=12), x=0),
+            yaxis=dict(title=dict(text=units, font=dict(size=12, color="#4b5563"))),
+            height=320,
         )
+        fig.update_layout(**layout)
+        
+        # 반환할 때 JSON 문자열로 캐스팅
+        return fig.to_json()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
-# ── 메인 레이아웃 ─────────────────────────────────────────────
-col_chart, col_chat = st.columns([1.1, 1], gap="large")
-
-with col_chart:
-    st.markdown('<p class="section-label">Chart</p>', unsafe_allow_html=True)
-
-    # 차트 타입 선택 버튼
-    last_ai = next((m for m in reversed(st.session_state.messages) if m["role"] == "assistant"), None)
-    if last_ai and "tickers" in last_ai:
-        btn_cols = st.columns(len(CHART_TYPES))
-        for i, (label, ctype) in enumerate(CHART_TYPES.items()):
-            with btn_cols[i]:
-                is_active = st.session_state.chart_type == ctype
-                if st.button(label, key=f"chart_btn_{ctype}",
-                             help=f"{label} 차트로 보기"):
-                    st.session_state.chart_type = ctype
-                    st.rerun()
-
-        render_chart(last_ai["tickers"], last_ai.get("start_yr"), last_ai.get("end_yr"),
-                     st.session_state.chart_type)
-
-        st.markdown('<p class="section-label" style="margin-top:0.5rem;">사용한 지표</p>', unsafe_allow_html=True)
-        for ticker, name, unit in last_ai["tickers"]:
-            st.markdown(f'<span class="source-tag">{ticker}: {name}</span>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div class="empty-chart">질문을 입력하면<br>관련 차트가 여기에 표시됩니다</div>', unsafe_allow_html=True)
-
-with col_chat:
-    st.markdown('<p class="section-label">Analysis</p>', unsafe_allow_html=True)
-    if not st.session_state.messages:
-        st.markdown("<p style='font-size:0.83rem;color:#6B8FAF;margin-bottom:0.5rem;'>예시 질문</p>", unsafe_allow_html=True)
-        cols = st.columns(2)
-        for i, eq in enumerate(EXAMPLE_QUESTIONS):
-            with cols[i % 2]:
-                if st.button(eq, key=f"eq_{i}"):
-                    st.session_state["pending_question"] = eq
-                    st.rerun()
-
-    for msg in st.session_state.messages:
-        if msg["role"] == "user":
-            st.markdown(f'<div class="chat-bubble-user">{msg["content"]}</div>', unsafe_allow_html=True)
-        else:
-            st.markdown(f'<div class="chat-bubble-ai">{msg["content"]}</div>', unsafe_allow_html=True)
-            if msg.get("sources"):
-                src_html = "".join(f'<span class="source-tag">📄 {s}</span>' for s in msg["sources"])
-                st.markdown(f"<div style='margin-bottom:0.8rem;'>{src_html}</div>", unsafe_allow_html=True)
-
-    user_input = st.chat_input("질문을 입력하세요. 예: 최근 5년 금리 그래프 보여줘")
-    if "pending_question" in st.session_state:
-        user_input = st.session_state.pop("pending_question")
-
-    if user_input:
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        st.session_state.history.append(user_input)
-        tickers, start_yr, end_yr = analyze_prompt(user_input)
-        with st.spinner(random.choice(LOADING_MESSAGES)):
-            answer = rag_chain.invoke(user_input)
-            sources = get_sources(retriever, user_input)
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": answer,
-            "sources": sources,
-            "tickers": tickers,
-            "start_yr": start_yr,
-            "end_yr": end_yr,
-        })
-        st.rerun()
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5001, debug=True, use_reloader=False)

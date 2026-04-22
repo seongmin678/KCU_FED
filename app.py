@@ -96,7 +96,7 @@ def update_vector_db():
 
 # 스케줄러를 한 번만 실행되도록 설정
 scheduler = BackgroundScheduler(timezone="Asia/Seoul")
-scheduler.add_job(update_vector_db, 'cron', hour=0, minute=0)
+scheduler.add_job(update_vector_db, 'cron', hour=4, minute=0)
 scheduler.start()
 
 # ── 2. 지표 설정 및 분할기 ──────────────────────────────────────────
@@ -214,23 +214,28 @@ def serve_static(path):
 
 @app.route("/api/chat", methods=["POST"])
 def api_chat():
-    data = request.json
-    question = data.get("message", "")
-    if not question:
-        return jsonify({"error": "No message provided"}), 400
+    try:
+        data = request.json
+        question = data.get("message", "")
+        if not question:
+            return jsonify({"error": "No message provided"}), 400
 
-    tickers, start_yr, end_yr, chart_type = analyze_prompt(question)
-    answer = rag_chain.invoke(question)
-    sources = get_sources(question)
+        tickers, start_yr, end_yr, chart_type = analyze_prompt(question)
+        answer = rag_chain.invoke(question)
+        sources = get_sources(question)
 
-    return jsonify({
-        "answer": answer,
-        "sources": sources,
-        "tickers": tickers,
-        "start_yr": start_yr,
-        "end_yr": end_yr,
-        "chart_type": chart_type
-    })
+        return jsonify({
+            "answer": answer,
+            "sources": sources,
+            "tickers": tickers,
+            "start_yr": start_yr,
+            "end_yr": end_yr,
+            "chart_type": chart_type
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"서버 내부 오류: {str(e)}"}), 500
 
 def make_trace(chart_type, x, y, name, color, secondary=False):
     opacity = 0.7 if secondary else 1.0

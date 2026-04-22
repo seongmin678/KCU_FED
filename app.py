@@ -24,7 +24,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 # 환경 변수 로드
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
-FRED_API_KEY = os.getenv("FRED_API_KEY", "230a44e2a7c17bf323c7ad1bcbf932b7").strip()
+FRED_API_KEY = os.getenv("FRED_API_KEY", "").strip()
 
 # Flask 앱 초기화 및 정적 파일 경로 지정 (현재 디렉토리 기준)
 app = Flask(__name__, static_folder=".")

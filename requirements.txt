@@ -11,3 +11,4 @@ APScheduler
 requests
 beautifulsoup4
 pypdf
+gunicorn

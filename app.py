@@ -85,7 +85,7 @@ def update_vector_db():
         if docs:
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
             split_docs = text_splitter.split_documents(docs)
-            embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+            embeddings = OpenAIEmbeddings(model="text-embedding-3-small", max_retries=0)
             db = Chroma(persist_directory="./fed_db", embedding_function=embeddings)
             db.add_documents(split_docs)
             print(f"[{datetime.datetime.now()}] 업데이트 완료: {len(split_docs)}개 청크 추가됨.")
@@ -158,8 +158,8 @@ def load_fred_data(ticker: str):
         return pd.DataFrame()
 
 # ── 3. Langchain RAG 초기화 ──────────────────────────────────────────
-embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
+embeddings = OpenAIEmbeddings(model="text-embedding-3-small", max_retries=0)
+llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0, max_retries=0)
 db = Chroma(persist_directory="./fed_db", embedding_function=embeddings)
 retriever = db.as_retriever(search_kwargs={"k": 4})
 

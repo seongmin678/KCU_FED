@@ -2,8 +2,12 @@ import os
 import sys
 
 # SQLite3 override for ChromaDB (Required for Render/Linux environments with old sqlite3)
-__import__('pysqlite3')
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+try:
+    __import__('pysqlite3')
+    import sys
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+except ImportError:
+    pass
 
 # Disable Chroma Telemetry to prevent hanging
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
@@ -425,4 +429,4 @@ def api_chart():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=True, use_reloader=False)
+    app.run(host="0.0.0.0", port=5001, debug=True)

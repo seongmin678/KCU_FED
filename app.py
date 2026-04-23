@@ -272,8 +272,8 @@ def make_trace(chart_type, x, y, name, color, secondary=False):
                          line=dict(color=color, width=2), opacity=opacity)
 
 PLOTLY_LAYOUT = dict(
-    paper_bgcolor="#FFFBF0",
-    plot_bgcolor="#FFFBF0",
+    paper_bgcolor="#F5A623",
+    plot_bgcolor="#F5A623",
     font=dict(color="#1f2937", family="Pretendard"),
     xaxis=dict(
         title="연도 (Year)",
@@ -291,7 +291,7 @@ PLOTLY_LAYOUT = dict(
         orientation="h",
         yanchor="bottom", y=1.05,
         xanchor="right", x=1,
-        bgcolor="rgba(255,251,240,0.8)",
+        bgcolor="rgba(245,166,35,0.8)",
         bordercolor="#cbd5e1", borderwidth=1,
         font=dict(color="#1f2937", size=11),
     ),

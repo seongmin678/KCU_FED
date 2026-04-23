@@ -11,4 +11,6 @@ APScheduler
 requests
 beautifulsoup4
 pypdf
+pypdf
 gunicorn
+pysqlite3-binary

@@ -1,4 +1,13 @@
 import os
+import sys
+
+# SQLite3 override for ChromaDB (Required for Render/Linux environments with old sqlite3)
+__import__('pysqlite3')
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
+# Disable Chroma Telemetry to prevent hanging
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+
 import re
 import datetime
 import pandas as pd

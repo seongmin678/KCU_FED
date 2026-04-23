@@ -277,15 +277,15 @@ PLOTLY_LAYOUT = dict(
     font=dict(color="#1f2937", family="Pretendard"),
     xaxis=dict(
         title="연도 (Year)",
-        showgrid=True, gridcolor="#e5e7eb", gridwidth=0.5,
+        showgrid=True, gridcolor="#9ca3af", gridwidth=1,
         tickfont=dict(color="#4b5563", size=11),
         tickformat="%Y",
-        showline=False, zeroline=False,
+        showline=True, linecolor="#6b7280", linewidth=1, zeroline=False,
     ),
     yaxis=dict(
-        showgrid=True, gridcolor="#e5e7eb", gridwidth=0.5,
+        showgrid=True, gridcolor="#9ca3af", gridwidth=1,
         tickfont=dict(color="#4b5563", size=11),
-        showline=False, zeroline=False,
+        showline=True, linecolor="#6b7280", linewidth=1, zeroline=False,
     ),
     legend=dict(
         orientation="h",
@@ -396,8 +396,8 @@ def api_chart():
                                 x=x_clean, y=y_clean,
                                 name=f"{name} (SEP 전망)",
                                 mode="lines+markers",
-                                line=dict(color=color, width=2, dash='dot'),
-                                marker=dict(symbol="star", size=9)
+                                line=dict(color="#ef4444", width=2, dash='dot'),
+                                marker=dict(symbol="circle", size=6, color="#ef4444")
                             ))
                 except Exception as e:
                     print(f"Error adding SEP trace: {e}")

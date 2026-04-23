@@ -272,32 +272,32 @@ def make_trace(chart_type, x, y, name, color, secondary=False):
                          line=dict(color=color, width=2), opacity=opacity)
 
 PLOTLY_LAYOUT = dict(
-    paper_bgcolor="#F5A623",
-    plot_bgcolor="#F5A623",
-    font=dict(color="#1f2937", family="Pretendard"),
+    paper_bgcolor="#111827",
+    plot_bgcolor="#111827",
+    font=dict(color="#f8fafc", family="Pretendard"),
     xaxis=dict(
         title="연도 (Year)",
-        showgrid=True, gridcolor="#9ca3af", gridwidth=1,
-        tickfont=dict(color="#4b5563", size=11),
+        showgrid=True, gridcolor="#334155", gridwidth=1,
+        tickfont=dict(color="#94a3b8", size=11),
         tickformat="%Y",
-        showline=True, linecolor="#6b7280", linewidth=1, zeroline=False,
+        showline=True, linecolor="#475569", linewidth=1, zeroline=False,
     ),
     yaxis=dict(
-        showgrid=True, gridcolor="#9ca3af", gridwidth=1,
-        tickfont=dict(color="#4b5563", size=11),
-        showline=True, linecolor="#6b7280", linewidth=1, zeroline=False,
+        showgrid=True, gridcolor="#334155", gridwidth=1,
+        tickfont=dict(color="#94a3b8", size=11),
+        showline=True, linecolor="#475569", linewidth=1, zeroline=False,
     ),
     legend=dict(
         orientation="h",
         yanchor="bottom", y=1.05,
         xanchor="right", x=1,
-        bgcolor="rgba(245,166,35,0.8)",
-        bordercolor="#cbd5e1", borderwidth=1,
-        font=dict(color="#1f2937", size=11),
+        bgcolor="rgba(15,23,42,0.8)",
+        bordercolor="#334155", borderwidth=1,
+        font=dict(color="#f8fafc", size=11),
     ),
     margin=dict(l=50, r=20, t=60, b=50),
     hovermode="x unified",
-    hoverlabel=dict(bgcolor="#ffffff", bordercolor="#3b82f6", font=dict(color="#1f2937")),
+    hoverlabel=dict(bgcolor="#1e293b", bordercolor="#3b82f6", font=dict(color="#f8fafc")),
 )
 
 @app.route("/api/chart", methods=["POST"])

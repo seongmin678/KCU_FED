@@ -340,9 +340,9 @@ def api_chart():
             ))
             layout = PLOTLY_LAYOUT.copy()
             layout.update(
-                title=dict(text=f"{name1} vs {name2}", font=dict(color="#1f2937", size=12), x=0),
-                xaxis=dict(title=dict(text=f"{name1} ({unit1})", font=dict(size=12, color="#4b5563")), tickformat=""),
-                yaxis=dict(title=dict(text=f"{name2} ({unit2})", font=dict(size=12, color="#4b5563"))),
+                title=dict(text=f"{name1} vs {name2}", font=dict(color="#f8fafc", size=12), x=0),
+                xaxis=dict(title=dict(text=f"{name1} ({unit1})", font=dict(size=12, color="#f8fafc")), tickformat=""),
+                yaxis=dict(title=dict(text=f"{name2} ({unit2})", font=dict(size=12, color="#f8fafc"))),
                 hovermode="closest",
                 height=320,
             )
@@ -415,8 +415,8 @@ def api_chart():
         units = ", ".join(list(set([t[2] for t in tickers])))
         
         layout.update(
-            title=dict(text=f"{title_name}", font=dict(color="#1f2937", size=12), x=0),
-            yaxis=dict(title=dict(text=units, font=dict(size=12, color="#4b5563"))),
+            title=dict(text=f"{title_name}", font=dict(color="#f8fafc", size=12), x=0),
+            yaxis=dict(title=dict(text=units, font=dict(size=12, color="#f8fafc"))),
             height=320,
         )
         fig.update_layout(**layout)

@@ -167,12 +167,18 @@ def load_fred_data(ticker: str):
         return pd.DataFrame()
 
 # ── 3. Langchain RAG 초기화 ──────────────────────────────────────────
-embeddings = OpenAIEmbeddings(model="text-embedding-3-small", max_retries=0)
-llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0, max_retries=0)
-db = Chroma(persist_directory="./fed_db", embedding_function=embeddings)
-retriever = db.as_retriever(search_kwargs={"k": 4})
+_rag_chain = None
+_retriever = None
 
-template = f"""You are a senior Federal Reserve analyst with deep expertise in monetary policy.
+def get_rag_chain_and_retriever():
+    global _rag_chain, _retriever
+    if _rag_chain is None:
+        embeddings = OpenAIEmbeddings(model="text-embedding-3-small", max_retries=0)
+        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0, max_retries=0)
+        db = Chroma(persist_directory="./fed_db", embedding_function=embeddings)
+        _retriever = db.as_retriever(search_kwargs={"k": 4})
+
+        template = f"""You are a senior Federal Reserve analyst with deep expertise in monetary policy.
 Answer the question based on the provided Fed documents (meeting minutes, speeches) and the latest SEP projections.
 
 Rules:
@@ -191,14 +197,16 @@ Context from Fed documents:
 Question: {{question}}
 
 Answer:"""
-prompt_template = ChatPromptTemplate.from_template(template)
-rag_chain = (
-    {"context": retriever | (lambda docs: "\n\n".join([d.page_content for d in docs])), "question": RunnablePassthrough()}
-    | prompt_template | llm | StrOutputParser()
-)
+        prompt_template = ChatPromptTemplate.from_template(template)
+        _rag_chain = (
+            {"context": _retriever | (lambda docs: "\n\n".join([d.page_content for d in docs])), "question": RunnablePassthrough()}
+            | prompt_template | llm | StrOutputParser()
+        )
+    return _rag_chain, _retriever
 
 def get_sources(question: str):
     try:
+        _, retriever = get_rag_chain_and_retriever()
         docs = retriever.invoke(question)
         sources = []
         for doc in docs:
@@ -230,6 +238,7 @@ def api_chat():
             return jsonify({"error": "No message provided"}), 400
 
         tickers, start_yr, end_yr, chart_type = analyze_prompt(question)
+        rag_chain, _ = get_rag_chain_and_retriever()
         answer = rag_chain.invoke(question)
         sources = get_sources(question)
 

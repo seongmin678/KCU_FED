@@ -183,6 +183,7 @@ def get_rag_chain_and_retriever():
         _retriever = db.as_retriever(search_kwargs={"k": 4})
 
         template = f"""You are a senior Federal Reserve analyst with deep expertise in monetary policy.
+Today's date is {datetime.datetime.now().strftime('%Y-%m-%d')}.
 Answer the question based on the provided Fed documents (meeting minutes, speeches) and the latest SEP projections.
 
 Rules:

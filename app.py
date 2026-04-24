@@ -186,6 +186,7 @@ def get_rag_chain_and_retriever():
 Answer the question based on the provided Fed documents (meeting minutes, speeches) and the latest SEP projections.
 
 Rules:
+- If the question is about past economic data trends, answer based on your general knowledge about Fed policy history, then supplement with the SEP projections below.
 - If the question is in Korean, answer in Korean. If in English, answer in English.
 - Be specific and cite numbers and dates/meetings when relevant.
 - Keep answers concise but informative (3-5 sentences).

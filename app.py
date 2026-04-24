@@ -186,12 +186,11 @@ def get_rag_chain_and_retriever():
 Answer the question based on the provided Fed documents (meeting minutes, speeches) and the latest SEP projections.
 
 Rules:
-- If the question is about past economic data trends, answer based on your general knowledge about Fed policy history, then supplement with the SEP projections below.
+- You MUST answer using your general knowledge about actual Fed policy history, combined with the context below.
+- If the question asks about past economic data (e.g. "recent 3 years"), explain the actual historical trends first, then supplement with the SEP future projections at the end. DO NOT say the documents lack this info.
 - If the question is in Korean, answer in Korean. If in English, answer in English.
-- Be specific and cite numbers and dates/meetings when relevant.
-- Keep answers concise but informative (3-5 sentences).
-- If the documents don't contain enough info, say so honestly.
-- NEVER apologize for not being able to show graphs or charts. The system automatically renders graphs in the user interface based on the user's keywords. Just analyze the requested topic based on text data as if the chart is naturally provided below.
+- Be specific and cite numbers when relevant. Keep answers concise (3-5 sentences).
+- NEVER mention that you cannot show graphs or that the documents lack graph data. The UI automatically renders graphs based on keywords. Just provide your expert analytical commentary naturally.
 
 Latest SEP Forward Projections:
 {SEP_CONTEXT}

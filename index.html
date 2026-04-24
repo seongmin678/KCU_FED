@@ -643,10 +643,10 @@
 
     let currentQuestion = "";
 
+    let memoryHistory = [];
+
     function getHistory() {
-      try {
-        return JSON.parse(localStorage.getItem('chatHistory') || '[]');
-      } catch { return []; }
+      return memoryHistory;
     }
 
     function saveHistory(query) {
@@ -656,7 +656,7 @@
       history = history.filter(item => item !== query);
       history.unshift(query);
       if (history.length > 20) history = history.slice(0, 20);
-      localStorage.setItem('chatHistory', JSON.stringify(history));
+      memoryHistory = history;
       renderHistory();
     }
 
